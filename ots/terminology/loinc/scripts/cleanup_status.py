@@ -13,9 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from psycopg import sql
 
 from ots import config
-from ots.db.terminology_postgres import connect_db, concept_table_name
+from ots.db.terminology_postgres import concept_table_name, connect_db
 from ots.terminology.loinc.scripts.load_loinc_postgres import DEFAULT_TERMINOLOGY
-
 
 INACTIVE_STATUSES = ("DEPRECATED", "DISCOURAGED")
 

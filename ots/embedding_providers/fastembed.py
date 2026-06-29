@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ots.embedding_providers.base import EmbeddingProvider
 from ots.embedding_providers.utils import normalize_vectors
@@ -49,7 +50,7 @@ class FastEmbedEmbeddingProvider(EmbeddingProvider):
         model: str,
         dimensions: int | None = None,
         options: dict[str, Any] | None = None,
-    ) -> "FastEmbedEmbeddingProvider":
+    ) -> FastEmbedEmbeddingProvider:
         return cls(model=model, **(options or {}))
 
     def __init__(

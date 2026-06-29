@@ -25,7 +25,9 @@ def get_engine() -> Engine:
     if _engine is None or _engine_url != url:
         _engine = create_engine(url, pool_pre_ping=True)
         _engine_url = url
-        _SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
+        _SessionLocal = sessionmaker(
+            bind=_engine, autoflush=False, expire_on_commit=False
+        )
     return _engine
 
 

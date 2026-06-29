@@ -6,8 +6,9 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -15,9 +16,8 @@ from psycopg import sql
 
 from ots import config
 from ots.db.terminology_postgres import (
-    DEFAULT_DATABASE_URL,
-    connect_db,
     concept_table_name,
+    connect_db,
 )
 from ots.terminology.loinc.scripts.load_loinc_postgres import (
     DEFAULT_TERMINOLOGY,
@@ -48,7 +48,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def batched(items: Iterable[dict[str, Any]], batch_size: int) -> Iterable[list[dict[str, Any]]]:
+def batched(
+    items: Iterable[dict[str, Any]], batch_size: int
+) -> Iterable[list[dict[str, Any]]]:
     batch: list[dict[str, Any]] = []
     for item in items:
         batch.append(item)
@@ -128,13 +130,18 @@ def main() -> int:
                 break
             batch = [dict(row) for row in rows]
             last_concept_id = int(batch[-1]["concept_id"])
-            payload = [(row_to_search_text(row), int(row["concept_id"])) for row in batch]
+            payload = [
+                (row_to_search_text(row), int(row["concept_id"])) for row in batch
+            ]
             with conn.cursor() as cur:
                 cur.executemany(update_sql, payload)
             conn.commit()
             updated += len(batch)
             elapsed = max(time.perf_counter() - start, 1e-9)
-            print(f"Updated {updated:,}/{total:,} rows ({updated / elapsed:.1f}/s)", flush=True)
+            print(
+                f"Updated {updated:,}/{total:,} rows ({updated / elapsed:.1f}/s)",
+                flush=True,
+            )
 
         if args.clear_embeddings:
             model_rows = conn.execute(
@@ -158,7 +165,10 @@ def main() -> int:
                 )
                 deleted += int(cursor.rowcount or 0)
             conn.commit()
-            print(f"Deleted {deleted:,} embedding rows for {DEFAULT_TERMINOLOGY!r}", flush=True)
+            print(
+                f"Deleted {deleted:,} embedding rows for {DEFAULT_TERMINOLOGY!r}",
+                flush=True,
+            )
 
     print(f"Done in {time.perf_counter() - start:.1f}s")
     return 0

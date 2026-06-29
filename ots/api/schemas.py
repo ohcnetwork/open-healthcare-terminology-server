@@ -66,7 +66,9 @@ class CustomRecordUpsertRequest(ApiModel):
     keywords: list[str] = Field(default_factory=list)
     connections: Any = Field(default_factory=list)
     active: bool = True
-    semantic_tag: str | None = Field(default=None, validation_alias=AliasChoices("semanticTag", "semantic_tag"))
+    semantic_tag: str | None = Field(
+        default=None, validation_alias=AliasChoices("semanticTag", "semantic_tag")
+    )
 
     @field_validator("code", "display", "description", "semantic_tag", mode="before")
     @classmethod
@@ -78,7 +80,9 @@ class CustomRecordUpsertRequest(ApiModel):
     def clean_keywords(cls, value: Any) -> list[str]:
         return _clean_string_list(value)
 
-    def storage_args(self, *, terminology_key: str, code_override: str | None = None) -> dict[str, Any]:
+    def storage_args(
+        self, *, terminology_key: str, code_override: str | None = None
+    ) -> dict[str, Any]:
         code = _clean_optional_string(code_override) or self.code
         if not code:
             raise ValueError("Field 'code' is required")
@@ -97,17 +101,25 @@ class CustomRecordUpsertRequest(ApiModel):
 
 class EmbeddingPopulateRequest(ApiModel):
     terminology: str | None = None
-    version: str | None = Field(default=None, validation_alias=AliasChoices("version", "terminologyVersion"))
+    version: str | None = Field(
+        default=None, validation_alias=AliasChoices("version", "terminologyVersion")
+    )
     provider: str | None = None
     model: str | None = None
-    model_key: str | None = Field(default=None, validation_alias=AliasChoices("modelKey", "model_key"))
+    model_key: str | None = Field(
+        default=None, validation_alias=AliasChoices("modelKey", "model_key")
+    )
     dimensions: int | None = None
-    storage_type: str = Field(default="auto", validation_alias=AliasChoices("storageType", "storage_type"))
+    storage_type: str = Field(
+        default="auto", validation_alias=AliasChoices("storageType", "storage_type")
+    )
     provider_options: dict[str, Any] = Field(
         default_factory=dict,
         validation_alias=AliasChoices("providerOptions", "provider_options"),
     )
-    batch_size: int = Field(default=64, validation_alias=AliasChoices("batchSize", "batch_size"))
+    batch_size: int = Field(
+        default=64, validation_alias=AliasChoices("batchSize", "batch_size")
+    )
     parallel_requests: int | None = Field(
         default=None,
         validation_alias=AliasChoices("parallelRequests", "parallel_requests"),
@@ -130,7 +142,9 @@ class EmbeddingPopulateRequest(ApiModel):
         default=False,
         validation_alias=AliasChoices("allSemanticTags", "all_semantic_tags"),
     )
-    ollama_host: str | None = Field(default=None, validation_alias=AliasChoices("ollamaHost", "ollama_host"))
+    ollama_host: str | None = Field(
+        default=None, validation_alias=AliasChoices("ollamaHost", "ollama_host")
+    )
     openai_timeout: float | None = Field(
         default=None,
         validation_alias=AliasChoices("openaiTimeout", "openai_timeout"),
@@ -155,7 +169,9 @@ class EmbeddingPopulateRequest(ApiModel):
         default=None,
         validation_alias=AliasChoices("maxInputChars", "max_input_chars"),
     )
-    skip_index: bool = Field(default=False, validation_alias=AliasChoices("skipIndex", "skip_index"))
+    skip_index: bool = Field(
+        default=False, validation_alias=AliasChoices("skipIndex", "skip_index")
+    )
     recreate_index: bool = Field(
         default=False,
         validation_alias=AliasChoices("recreateIndex", "recreate_index"),

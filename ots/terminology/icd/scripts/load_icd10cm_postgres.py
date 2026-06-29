@@ -8,8 +8,9 @@ import sys
 import time
 import zipfile
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -19,17 +20,17 @@ from psycopg.types.json import Jsonb
 from ots import config
 from ots.cli.common.imported_loader_utils import batched, upsert_documents
 from ots.db.terminology_postgres import (
-    DEFAULT_DATABASE_URL,
-    DEFAULT_EMBEDDING_DIMENSIONS,
-    connect_db,
     concept_table_name,
+    connect_db,
     init_schema,
 )
 from ots.terminology import build_search_text
 from ots.terminology.icd.model import Icd10CmTerminology
 
 TERMINOLOGY = Icd10CmTerminology()
-DEFAULT_SOURCE = Path("data/raw/icd10cm/april-1-2026-code-descriptions-tabular-order.zip")
+DEFAULT_SOURCE = Path(
+    "data/raw/icd10cm/april-1-2026-code-descriptions-tabular-order.zip"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,10 +38,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--database-url", default=config.DATABASE_URL)
     parser.add_argument("--version", help="Terminology version key to import")
-    parser.add_argument("--base-version", help="Base/core edition version this edition composes")
-    parser.add_argument("--package-key", help="Release package key registered for this import")
-    parser.add_argument("--package-version", help="Release package version registered for this import")
-    parser.add_argument("--package-type", default="release", help="Release package type")
+    parser.add_argument(
+        "--base-version", help="Base/core edition version this edition composes"
+    )
+    parser.add_argument(
+        "--package-key", help="Release package key registered for this import"
+    )
+    parser.add_argument(
+        "--package-version", help="Release package version registered for this import"
+    )
+    parser.add_argument(
+        "--package-type", default="release", help="Release package type"
+    )
     parser.add_argument(
         "--default-version",
         action="store_true",
@@ -70,9 +79,15 @@ def display_code(raw_code: str) -> str:
 
 def iter_order_rows(source: Path) -> Iterable[dict[str, Any]]:
     with zipfile.ZipFile(source) as archive:
-        names = [name for name in archive.namelist() if name.endswith("icd10cm_order_2026.txt")]
+        names = [
+            name
+            for name in archive.namelist()
+            if name.endswith("icd10cm_order_2026.txt")
+        ]
         if not names:
-            raise FileNotFoundError("Could not find icd10cm_order_2026.txt in ICD-10-CM ZIP")
+            raise FileNotFoundError(
+                "Could not find icd10cm_order_2026.txt in ICD-10-CM ZIP"
+            )
         with archive.open(names[0]) as handle:
             for raw_line in handle:
                 line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
@@ -104,7 +119,9 @@ def ancestor_codes(code: str, parent_by_code: dict[str, str | None]) -> list[str
     return ancestors
 
 
-def build_documents(rows: list[dict[str, Any]], *, terminology_key: str) -> Iterable[dict[str, Any]]:
+def build_documents(
+    rows: list[dict[str, Any]], *, terminology_key: str
+) -> Iterable[dict[str, Any]]:
     code_set = {row["raw_code"] for row in rows}
     parent_by_code = {code: parent_for_code(code, code_set) for code in code_set}
     child_codes: dict[str, list[str]] = defaultdict(list)
@@ -122,14 +139,19 @@ def build_documents(rows: list[dict[str, Any]], *, terminology_key: str) -> Iter
         code = display_code(raw_code)
         preferred_term = row["long_title"] or row["short_title"] or code
         short_title = row["short_title"] or preferred_term
-        parent_ids = [
-            concept_id_by_code[parent_by_code[raw_code]]
-        ] if parent_by_code.get(raw_code) else []
+        parent_ids = (
+            [concept_id_by_code[parent_by_code[raw_code]]]
+            if parent_by_code.get(raw_code)
+            else []
+        )
         ancestor_ids = [
-            concept_id_by_code[item] for item in ancestor_codes(raw_code, parent_by_code)
+            concept_id_by_code[item]
+            for item in ancestor_codes(raw_code, parent_by_code)
         ]
         children = sorted(child_codes.get(raw_code, []))
-        synonyms = [short_title] if short_title.casefold() != preferred_term.casefold() else []
+        synonyms = (
+            [short_title] if short_title.casefold() != preferred_term.casefold() else []
+        )
         descriptions = [
             {
                 "term": preferred_term,
@@ -186,7 +208,9 @@ def build_documents(rows: list[dict[str, Any]], *, terminology_key: str) -> Iter
                     {"name": "billable", "value": row["billable"]},
                 ]
             ),
-            "search_text": build_search_text(preferred_term, short_title, code, raw_code),
+            "search_text": build_search_text(
+                preferred_term, short_title, code, raw_code
+            ),
             "payload": Jsonb(payload),
         }
 
@@ -213,9 +237,11 @@ def main() -> None:
             embedding_dimensions=args.embedding_dimensions,
         )
         if args.recreate:
-            conn.execute(sql.SQL("DROP TABLE IF EXISTS {table_name} CASCADE").format(
-                table_name=sql.Identifier(concept_table)
-            ))
+            conn.execute(
+                sql.SQL("DROP TABLE IF EXISTS {table_name} CASCADE").format(
+                    table_name=sql.Identifier(concept_table)
+                )
+            )
             init_schema(
                 conn,
                 terminology_key=terminology_key,

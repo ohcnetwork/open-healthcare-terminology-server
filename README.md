@@ -107,6 +107,31 @@ make run snomed load-packages
 make run ARGS="snomed load -- --help"
 ```
 
+## Quality Checks
+
+The project uses Ruff and pre-commit with rules aligned to the Care codebase.
+
+Install local development dependencies and the git hook:
+
+```bash
+pipenv install --dev
+make install-pre-commit
+```
+
+Run checks manually:
+
+```bash
+make lint
+make format-check
+make pre-commit
+```
+
+Format Python files:
+
+```bash
+make format
+```
+
 For local Ollama from Docker Desktop on macOS, Compose defaults
 `OTS_OLLAMA_HOST` to `http://host.docker.internal:11434`. Set `OPENAI_API_KEY`
 in your shell or `.env` file when using OpenAI embeddings.

@@ -127,9 +127,13 @@ def main() -> int:
             stdin=handle,
             stderr=subprocess.PIPE,
             text=True,
+            check=False,
         )
     if result.returncode != 0:
-        message = result.stderr.strip() or f"Command failed with exit code {result.returncode}"
+        message = (
+            result.stderr.strip()
+            or f"Command failed with exit code {result.returncode}"
+        )
         raise SystemExit(
             "Database restore failed.\n\n"
             f"{message}\n\n"

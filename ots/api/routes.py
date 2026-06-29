@@ -18,7 +18,11 @@ from ots.api.views.fhir import (
     value_set_expand_endpoint,
 )
 from ots.api.views.jobs import embedding_job_endpoint, embedding_jobs_endpoint
-from ots.api.views.search import search_get_endpoint, search_post_endpoint, semantic_search_endpoint
+from ots.api.views.search import (
+    search_get_endpoint,
+    search_post_endpoint,
+    semantic_search_endpoint,
+)
 from ots.api.views.system import (
     embedding_status_endpoint,
     health,
@@ -55,8 +59,14 @@ routes = [
         "/terminologies/{terminology:str}/lookup/{code:str}",
         endpoint=terminology_lookup_endpoint,
     ),
-    Route("/ValueSet/$expand", endpoint=value_set_expand_endpoint, methods=["GET", "POST"]),
-    Route("/CodeSystem/$lookup", endpoint=code_system_lookup_endpoint, methods=["GET", "POST"]),
+    Route(
+        "/ValueSet/$expand", endpoint=value_set_expand_endpoint, methods=["GET", "POST"]
+    ),
+    Route(
+        "/CodeSystem/$lookup",
+        endpoint=code_system_lookup_endpoint,
+        methods=["GET", "POST"],
+    ),
     Route("/concepts/{concept_id:int}", endpoint=concept_endpoint),
     Route("/concepts/{concept_id:int}/children", endpoint=children_endpoint),
     Route("/concepts/{concept_id:int}/descendants", endpoint=descendants_endpoint),
@@ -65,6 +75,12 @@ routes = [
     Route("/search/vector", endpoint=semantic_search_endpoint, methods=["POST"]),
     Route("/search/semantic", endpoint=semantic_search_endpoint, methods=["POST"]),
     Route("/embeddings/status", endpoint=embedding_status_endpoint),
-    Route("/embeddings/jobs", endpoint=embedding_jobs_endpoint, methods=["GET", "POST"]),
-    Route("/embeddings/jobs/{job_id:str}", endpoint=embedding_job_endpoint, methods=["GET"]),
+    Route(
+        "/embeddings/jobs", endpoint=embedding_jobs_endpoint, methods=["GET", "POST"]
+    ),
+    Route(
+        "/embeddings/jobs/{job_id:str}",
+        endpoint=embedding_job_endpoint,
+        methods=["GET"],
+    ),
 ]

@@ -7,7 +7,12 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from ots.api.parsers import parse_bool, parse_limit, parse_terminology, parse_terminology_version
+from ots.api.parsers import (
+    parse_bool,
+    parse_limit,
+    parse_terminology,
+    parse_terminology_version,
+)
 from ots.api.responses import concept_response, json_error, json_response
 from ots.api.schemas import CustomRecordUpsertRequest
 from ots.db.terminology_postgres import (
@@ -87,7 +92,9 @@ def custom_record_args(
     code_override: str | None = None,
 ) -> dict[str, Any]:
     model = CustomRecordUpsertRequest.model_validate(payload)
-    return model.storage_args(terminology_key=terminology_key, code_override=code_override)
+    return model.storage_args(
+        terminology_key=terminology_key, code_override=code_override
+    )
 
 
 async def custom_record_collection_endpoint(request: Request) -> JSONResponse:
@@ -102,7 +109,9 @@ async def custom_record_collection_endpoint(request: Request) -> JSONResponse:
             **custom_record_args(terminology_key=terminology_key, payload=payload),
         )
     except ValidationError as exc:
-        return json_error("Invalid record payload", status_code=422, details=exc.errors())
+        return json_error(
+            "Invalid record payload", status_code=422, details=exc.errors()
+        )
     except ValueError as exc:
         return json_error(str(exc), status_code=422)
     except Exception as exc:
@@ -126,7 +135,9 @@ async def custom_record_endpoint(request: Request) -> JSONResponse:
             return json_error(f"Could not delete record: {exc}", status_code=503)
         if not deleted:
             return json_error("Record not found", status_code=404)
-        return json_response({"terminology": terminology_key, "code": code, "deleted": True})
+        return json_response(
+            {"terminology": terminology_key, "code": code, "deleted": True}
+        )
     try:
         payload = await request.json()
     except Exception:
@@ -141,7 +152,9 @@ async def custom_record_endpoint(request: Request) -> JSONResponse:
             ),
         )
     except ValidationError as exc:
-        return json_error("Invalid record payload", status_code=422, details=exc.errors())
+        return json_error(
+            "Invalid record payload", status_code=422, details=exc.errors()
+        )
     except ValueError as exc:
         return json_error(str(exc), status_code=422)
     except Exception as exc:
@@ -183,8 +196,12 @@ async def descendants_endpoint(request: Request) -> JSONResponse:
         concept_id = int(request.path_params["concept_id"])
         terminology_key = parse_terminology(request.query_params)
         terminology_version = parse_terminology_version(request.query_params)
-        limit = parse_limit(request.query_params.get("limit"), default=100, maximum=1_000)
-        include_self = parse_bool(request.query_params.get("includeSelf"), default=False)
+        limit = parse_limit(
+            request.query_params.get("limit"), default=100, maximum=1_000
+        )
+        include_self = parse_bool(
+            request.query_params.get("includeSelf"), default=False
+        )
         active_only = parse_bool(request.query_params.get("activeOnly"), default=True)
     except ValueError as exc:
         return json_error(str(exc))

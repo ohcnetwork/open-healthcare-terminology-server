@@ -14,7 +14,6 @@ from ots.db.terminology_postgres import (
     DEFAULT_EMBEDDING_DIMENSIONS,
     create_custom_terminology,
     database_status,
-    database_url,
     embedding_status,
     list_terminologies,
 )
@@ -94,7 +93,9 @@ async def terminologies_endpoint(request: Request) -> JSONResponse:
                 connections=model.connections,
             )
         except ValidationError as exc:
-            return json_error("Invalid terminology payload", status_code=422, details=exc.errors())
+            return json_error(
+                "Invalid terminology payload", status_code=422, details=exc.errors()
+            )
         except ValueError as exc:
             return json_error(str(exc), status_code=422)
         except Exception as exc:

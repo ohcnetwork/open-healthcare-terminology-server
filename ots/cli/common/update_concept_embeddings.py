@@ -10,24 +10,15 @@ import os
 import sys
 import threading
 import time
+from collections.abc import Callable, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ots.embedding_providers import (
-    DEFAULT_EMBEDDING_MODEL,
-    DEFAULT_EMBEDDING_PROVIDER,
-    create_embedder,
-    default_dimensions,
-    default_provider_model,
-    normalize_provider_options,
-    supported_providers,
-)
 from ots import config
 from ots.db.terminology_postgres import (
-    DEFAULT_DATABASE_URL,
     DEFAULT_EMBEDDING_DIMENSIONS,
     DEFAULT_TERMINOLOGY_KEY,
     MAX_VECTOR_INDEX_DIMENSIONS,
@@ -41,6 +32,15 @@ from ots.db.terminology_postgres import (
     register_embedding_model,
     resolve_embedding_storage_type,
     upsert_concept_embeddings,
+)
+from ots.embedding_providers import (
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_EMBEDDING_PROVIDER,
+    create_embedder,
+    default_dimensions,
+    default_provider_model,
+    normalize_provider_options,
+    supported_providers,
 )
 
 
@@ -93,9 +93,9 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Provider-specific JSON object, or @path/to/options.json. "
-            "Examples: '{\"host\":\"http://127.0.0.1:11434\"}', "
-            "'{\"timeout\":120,\"max_retries\":2}', "
-            "'{\"cache_dir\":\"data/models/fastembed\",\"threads\":8}'."
+            'Examples: \'{"host":"http://127.0.0.1:11434"}\', '
+            '\'{"timeout":120,"max_retries":2}\', '
+            '\'{"cache_dir":"data/models/fastembed","threads":8}\'.'
         ),
     )
     parser.add_argument(
@@ -188,7 +188,9 @@ def parse_provider_options(value: str | dict[str, Any] | None) -> dict[str, Any]
         try:
             text = path.read_text(encoding="utf-8")
         except OSError as exc:
-            raise SystemExit(f"Could not read provider options file {path}: {exc}") from exc
+            raise SystemExit(
+                f"Could not read provider options file {path}: {exc}"
+            ) from exc
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError as exc:
@@ -324,9 +326,7 @@ def run_embedding_update(
         )
 
     configured_model_key = (
-        config.EMBEDDING_MODEL_KEY
-        if os.getenv("OTS_EMBEDDING_MODEL_KEY")
-        else None
+        config.EMBEDDING_MODEL_KEY if os.getenv("OTS_EMBEDDING_MODEL_KEY") else None
     )
     if args.model_key or configured_model_key:
         model_key = args.model_key or configured_model_key
@@ -341,7 +341,10 @@ def run_embedding_update(
     config.set_database_url(args.database_url)
     terminology_key = args.terminology
     semantic_tag_filter = args.semantic_tags
-    if semantic_tag_filter is None and terminology_key.strip().lower() == DEFAULT_TERMINOLOGY_KEY:
+    if (
+        semantic_tag_filter is None
+        and terminology_key.strip().lower() == DEFAULT_TERMINOLOGY_KEY
+    ):
         semantic_tag_filter = "disorder,finding"
     semantic_tags = parse_semantic_tags(
         semantic_tag_filter,
@@ -435,7 +438,9 @@ def run_embedding_update(
                     distance="cosine",
                 )
                 conn.commit()
-                print(f"Index ready in {format_duration(time.perf_counter() - index_start)}")
+                print(
+                    f"Index ready in {format_duration(time.perf_counter() - index_start)}"
+                )
             return {
                 "terminology": terminology_key,
                 "version": args.version,
@@ -572,7 +577,9 @@ def run_embedding_update(
                 distance="cosine",
             )
             conn.commit()
-            print(f"Index ready in {format_duration(time.perf_counter() - index_start)}")
+            print(
+                f"Index ready in {format_duration(time.perf_counter() - index_start)}"
+            )
 
     elapsed = time.perf_counter() - start
     print(f"Done in {format_duration(elapsed)}")

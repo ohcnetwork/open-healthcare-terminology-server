@@ -53,7 +53,9 @@ async def embedding_jobs_endpoint(request: Request) -> JSONResponse:
     try:
         model = EmbeddingPopulateRequest.model_validate(payload)
     except ValidationError as exc:
-        return json_error("Invalid embedding job payload", status_code=422, details=exc.errors())
+        return json_error(
+            "Invalid embedding job payload", status_code=422, details=exc.errors()
+        )
     try:
         task = populate_embeddings.delay(model.task_payload())
     except Exception as exc:

@@ -1,26 +1,16 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Iterable, Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from ots.terminology import (
-    CUSTOM_TERMINOLOGY_KIND,
-    DEFAULT_TERMINOLOGY_KEY,
-    DEFAULT_TERMINOLOGY_VERSION_KEY,
-    IMPORTED_TERMINOLOGY_KEYS,
-    IMPORTED_TERMINOLOGY_KIND,
-    build_search_text,
-    concept_table_name as _terminology_concept_table_name,
-    get_terminology_definition,
-    normalize_terminology_key as _normalize_terminology_key,
-    normalize_version_key as _normalize_version_key,
-    versioned_concept_table_name,
-)
+from ots import config
+from ots.db import schema as db_schema
 from ots.db.repositories import (
     list_edition_packages,
     list_release_packages,
@@ -28,8 +18,23 @@ from ots.db.repositories import (
     list_terminology_versions,
     upsert_terminology_system,
 )
-from ots.db import schema as db_schema
-from ots import config
+from ots.terminology import (
+    CUSTOM_TERMINOLOGY_KIND,
+    DEFAULT_TERMINOLOGY_KEY,
+    DEFAULT_TERMINOLOGY_VERSION_KEY,
+    IMPORTED_TERMINOLOGY_KEYS,
+    get_terminology_definition,
+    versioned_concept_table_name,
+)
+from ots.terminology import (
+    concept_table_name as _terminology_concept_table_name,
+)
+from ots.terminology import (
+    normalize_terminology_key as _normalize_terminology_key,
+)
+from ots.terminology import (
+    normalize_version_key as _normalize_version_key,
+)
 
 DEFAULT_DATABASE_URL = config.DEFAULT_DATABASE_URL
 DEFAULT_EMBEDDING_DIMENSIONS = config.DEFAULT_EMBEDDING_DIMENSIONS
@@ -115,7 +120,9 @@ def concept_columns(
         qualified_expression = (
             expression.replace("payload", f"{table_alias}.payload")
             if table_alias and "payload" in expression
-            else f"{table_alias}.{expression}" if table_alias else expression
+            else f"{table_alias}.{expression}"
+            if table_alias
+            else expression
         )
         if expression == alias:
             rendered.append(qualified_expression)
@@ -146,7 +153,9 @@ def concept_table_name(
 
 
 def _concept_columns_list() -> list[str]:
-    return [name.strip() for name in CONCEPT_DOCUMENT_COLUMNS.split(",") if name.strip()]
+    return [
+        name.strip() for name in CONCEPT_DOCUMENT_COLUMNS.split(",") if name.strip()
+    ]
 
 
 def _query_payload(sql_text: str, params: Sequence[Any]) -> dict[str, Any]:
@@ -164,7 +173,8 @@ def _vector_query_payload(
     dimensions: int,
 ) -> dict[str, Any]:
     redacted_params = [
-        f"<embedding:{dimensions} dimensions>" if value == vector else value for value in params
+        f"<embedding:{dimensions} dimensions>" if value == vector else value
+        for value in params
     ]
     payload = _query_payload(sql_text, redacted_params)
     payload["sessionSettings"] = {
@@ -181,7 +191,11 @@ def resolve_embedding_storage_type(
 ) -> str:
     storage_type = (requested_storage_type or "auto").strip().lower()
     if storage_type in {"auto", ""}:
-        return HALFVEC_STORAGE if dimensions > MAX_VECTOR_INDEX_DIMENSIONS else VECTOR_STORAGE
+        return (
+            HALFVEC_STORAGE
+            if dimensions > MAX_VECTOR_INDEX_DIMENSIONS
+            else VECTOR_STORAGE
+        )
     if storage_type not in {VECTOR_STORAGE, HALFVEC_STORAGE}:
         raise ValueError("storage_type must be one of: auto, vector, halfvec")
     if storage_type == HALFVEC_STORAGE and dimensions > MAX_HALFVEC_INDEX_DIMENSIONS:
@@ -345,7 +359,9 @@ def resolve_terminology_version(
         terminology_version=version_key,
         concept_table=concept_table,
         is_default=terminology_version in (None, ""),
-        version_label="Current import" if version_key == DEFAULT_TERMINOLOGY_VERSION_KEY else version_key,
+        version_label="Current import"
+        if version_key == DEFAULT_TERMINOLOGY_VERSION_KEY
+        else version_key,
     )
 
 
@@ -457,7 +473,9 @@ def link_package_to_edition(
 
 def _copy_legacy_snomed_if_needed(conn) -> None:
     snomed_table = concept_table_name(DEFAULT_TERMINOLOGY_KEY)
-    if not _table_exists(conn, LEGACY_CONCEPT_TABLE) or not _table_exists(conn, snomed_table):
+    if not _table_exists(conn, LEGACY_CONCEPT_TABLE) or not _table_exists(
+        conn, snomed_table
+    ):
         return
     target_count = conn.execute(
         sql.SQL("SELECT COUNT(*) AS count FROM {table_name}").format(
@@ -498,7 +516,11 @@ def resync_terminology_edition(
         raise ValueError("source_version and target_version must be different")
 
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=source_version_key)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=source_version_key,
+        )
         init_schema(
             conn,
             terminology_key=terminology_key,
@@ -532,8 +554,12 @@ def resync_terminology_edition(
             )
             deleted = int(cursor.rowcount or 0)
 
-        columns = [column for column in _concept_columns_list() if column != "updated_at"]
-        insert_columns = sql.SQL(", ").join(sql.Identifier(column) for column in columns)
+        columns = [
+            column for column in _concept_columns_list() if column != "updated_at"
+        ]
+        insert_columns = sql.SQL(", ").join(
+            sql.Identifier(column) for column in columns
+        )
         select_columns = []
         for column in columns:
             if column == "payload":
@@ -551,7 +577,9 @@ def resync_terminology_edition(
             else:
                 select_columns.append(sql.Identifier(column))
         update_columns = sql.SQL(", ").join(
-            sql.SQL("{column} = excluded.{column}").format(column=sql.Identifier(column))
+            sql.SQL("{column} = excluded.{column}").format(
+                column=sql.Identifier(column)
+            )
             for column in columns
             if column != "concept_id"
         )
@@ -613,7 +641,12 @@ def resync_terminology_edition(
                 metadata = terminology_edition_package.metadata || excluded.metadata,
                 updated_at = now()
             """,
-            (target_version_key, source_version_key, terminology_key, source_version_key),
+            (
+                target_version_key,
+                source_version_key,
+                terminology_key,
+                source_version_key,
+            ),
         )
         _upsert_terminology_version(
             conn,
@@ -700,15 +733,27 @@ def init_schema(
         terminology_version=version_key,
         concept_table=concept_table,
         is_default=set_default_version or terminology_version in (None, ""),
-        version_label="Current import" if version_key == DEFAULT_TERMINOLOGY_VERSION_KEY else version_key,
-        edition_type=edition_type
-        or ("composed" if base_version_key else "standalone"),
-        base_version_key=normalize_version_key(base_version_key) if base_version_key else None,
+        version_label="Current import"
+        if version_key == DEFAULT_TERMINOLOGY_VERSION_KEY
+        else version_key,
+        edition_type=edition_type or ("composed" if base_version_key else "standalone"),
+        base_version_key=normalize_version_key(base_version_key)
+        if base_version_key
+        else None,
     )
-    should_register_package = any(
-        value is not None
-        for value in (package_key, package_version, package_source_uri, package_metadata)
-    ) or package_type != "release" or package_role != "primary"
+    should_register_package = (
+        any(
+            value is not None
+            for value in (
+                package_key,
+                package_version,
+                package_source_uri,
+                package_metadata,
+            )
+        )
+        or package_type != "release"
+        or package_role != "primary"
+    )
     if should_register_package:
         package_key = (package_key or f"{terminology_key}-{version_key}").strip()
         package_version = (package_version or version_key).strip()
@@ -741,7 +786,11 @@ def database_status(
 ) -> dict[str, Any]:
     terminology_key = normalize_terminology_key(terminology_key)
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         version = resolve_terminology_version(
             conn,
             terminology_key=terminology_key,
@@ -793,7 +842,9 @@ def list_terminologies() -> list[dict[str, Any]]:
         rows = list_terminology_systems()
         versions_by_terminology: dict[str, list[dict[str, Any]]] = {}
         for version in list_terminology_versions():
-            versions_by_terminology.setdefault(str(version["terminology_key"]), []).append(version)
+            versions_by_terminology.setdefault(
+                str(version["terminology_key"]), []
+            ).append(version)
         edition_packages_by_key: dict[tuple[str, str], list[dict[str, Any]]] = {}
         for package in list_edition_packages():
             edition_packages_by_key.setdefault(
@@ -815,9 +866,17 @@ def list_terminologies() -> list[dict[str, Any]]:
                     (str(version["terminology_key"]), str(version["version_key"])),
                     [],
                 )
-            default_version = next((version for version in versions if version["is_default"]), None)
-            concept_table = str(default_version["concept_table"] if default_version else item["concept_table"])
-            item["default_version"] = default_version["version_key"] if default_version else None
+            default_version = next(
+                (version for version in versions if version["is_default"]), None
+            )
+            concept_table = str(
+                default_version["concept_table"]
+                if default_version
+                else item["concept_table"]
+            )
+            item["default_version"] = (
+                default_version["version_key"] if default_version else None
+            )
             item["versions"] = versions
             item["release_packages"] = release_packages_by_terminology.get(
                 str(item["terminology_key"]),
@@ -882,8 +941,12 @@ def create_custom_terminology(
 ) -> dict[str, Any]:
     terminology_key = normalize_terminology_key(terminology_key)
     if terminology_key in IMPORTED_TERMINOLOGY_KEYS:
-        raise ValueError(f"{terminology_key!r} is an imported terminology and cannot be created")
-    clean_keywords = [str(item).strip() for item in (keywords or []) if str(item).strip()]
+        raise ValueError(
+            f"{terminology_key!r} is an imported terminology and cannot be created"
+        )
+    clean_keywords = [
+        str(item).strip() for item in (keywords or []) if str(item).strip()
+    ]
     terminology = get_terminology_definition(
         terminology_key,
         name=name,
@@ -911,7 +974,9 @@ def create_custom_terminology(
 def delete_custom_terminology(*, terminology_key: str) -> bool:
     terminology_key = normalize_terminology_key(terminology_key)
     if terminology_key in IMPORTED_TERMINOLOGY_KEYS:
-        raise ValueError(f"{terminology_key!r} is an imported terminology and cannot be deleted")
+        raise ValueError(
+            f"{terminology_key!r} is an imported terminology and cannot be deleted"
+        )
     with connect_db() as conn:
         init_schema(conn, terminology_key=DEFAULT_TERMINOLOGY_KEY)
         row = _terminology_system_row(conn, terminology_key)
@@ -942,7 +1007,9 @@ def delete_custom_terminology(*, terminology_key: str) -> bool:
                     table_name=sql.Identifier(str(embedding_row["embedding_table"]))
                 )
             )
-        conn.execute("DELETE FROM embedding_model WHERE terminology_key = %s", (terminology_key,))
+        conn.execute(
+            "DELETE FROM embedding_model WHERE terminology_key = %s", (terminology_key,)
+        )
         for version_row in version_rows:
             conn.execute(
                 sql.SQL("DROP TABLE IF EXISTS {table_name} CASCADE").format(
@@ -981,7 +1048,9 @@ def _require_custom_terminology(conn, terminology_key: str) -> dict[str, Any]:
     if row is None:
         raise ValueError(f"Custom terminology {terminology_key!r} has not been created")
     if row["kind"] != CUSTOM_TERMINOLOGY_KIND:
-        raise ValueError(f"{terminology_key!r} is an imported terminology and is read-only")
+        raise ValueError(
+            f"{terminology_key!r} is an imported terminology and is read-only"
+        )
     _create_concept_document_table(conn, terminology_key=terminology_key)
     _ensure_custom_code_index(conn, terminology_key)
     return row
@@ -1003,7 +1072,9 @@ def upsert_custom_record(
     normalized_code = str(code).strip()
     if not normalized_code:
         raise ValueError("code is required")
-    clean_keywords = [str(item).strip() for item in (keywords or []) if str(item).strip()]
+    clean_keywords = [
+        str(item).strip() for item in (keywords or []) if str(item).strip()
+    ]
     display_text = " ".join(str(display or normalized_code).split())
     description_text = " ".join(str(description).split()) if description else None
     tag = str(semantic_tag or "custom").strip() or "custom"
@@ -1116,7 +1187,9 @@ def delete_custom_record(*, terminology_key: str, code: str) -> bool:
     normalized_code = str(code).strip()
     if not normalized_code:
         raise ValueError("code is required")
-    concept_id = get_terminology_definition(terminology_key).code_to_concept_id(normalized_code)
+    concept_id = get_terminology_definition(terminology_key).code_to_concept_id(
+        normalized_code
+    )
     concept_table = concept_table_name(terminology_key)
     with connect_db() as conn:
         _require_custom_terminology(conn, terminology_key)
@@ -1142,7 +1215,11 @@ def get_concept(
 ) -> dict[str, Any] | None:
     terminology_key = normalize_terminology_key(terminology_key)
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         concept_table = concept_table_for(
             conn,
             terminology_key=terminology_key,
@@ -1171,7 +1248,11 @@ def get_concept_by_code(
     normalized_code = str(code).strip()
     normalized_code_without_dot = normalized_code.replace(".", "")
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         concept_table = concept_table_for(
             conn,
             terminology_key=terminology_key,
@@ -1344,15 +1425,17 @@ def expand_value_set_concepts(
         """
     )
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         concept_table = concept_table_for(
             conn,
             terminology_key=terminology_key,
             terminology_version=terminology_version,
         )
-        sql_text = sql_template.format(
-            concept_table=sql.Identifier(concept_table)
-        )
+        sql_text = sql_template.format(concept_table=sql.Identifier(concept_table))
         rows = [dict(row) for row in conn.execute(sql_text, params).fetchall()]
     total = int(rows[0].pop("total")) if rows else 0
     for row in rows:
@@ -1369,12 +1452,17 @@ def _scope_clause(
     if ancestor_concept_id is None:
         return "", []
     concept_id_column = f"{table_alias}.concept_id" if table_alias else "concept_id"
-    ancestor_ids_column = f"{table_alias}.ancestor_ids" if table_alias else "ancestor_ids"
+    ancestor_ids_column = (
+        f"{table_alias}.ancestor_ids" if table_alias else "ancestor_ids"
+    )
     if include_ancestor:
-        return f"AND (%s = {concept_id_column} OR {ancestor_ids_column} @> ARRAY[%s]::bigint[])", [
-            ancestor_concept_id,
-            ancestor_concept_id,
-        ]
+        return (
+            f"AND (%s = {concept_id_column} OR {ancestor_ids_column} @> ARRAY[%s]::bigint[])",
+            [
+                ancestor_concept_id,
+                ancestor_concept_id,
+            ],
+        )
     return f"AND {ancestor_ids_column} @> ARRAY[%s]::bigint[]", [ancestor_concept_id]
 
 
@@ -1455,7 +1543,11 @@ def search_concepts(
     """
     )
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         concept_table = concept_table_for(
             conn,
             terminology_key=terminology_key,
@@ -1463,7 +1555,9 @@ def search_concepts(
         )
         query_sql = query_template.format(concept_table=sql.Identifier(concept_table))
         rows = conn.execute(query_sql, params).fetchall()
-        query_info = _query_payload(query_sql.as_string(conn), params) if include_query else None
+        query_info = (
+            _query_payload(query_sql.as_string(conn), params) if include_query else None
+        )
     results = [dict(row) for row in rows]
     if include_query:
         return results, query_info or {}
@@ -1481,7 +1575,11 @@ def list_children(
     terminology_key = normalize_terminology_key(terminology_key)
     active_sql = "AND active" if active_only else ""
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         concept_table = concept_table_for(
             conn,
             terminology_key=terminology_key,
@@ -1529,7 +1627,11 @@ def list_descendants(
         params.append(concept_id)
     params.append(limit)
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         concept_table = concept_table_for(
             conn,
             terminology_key=terminology_key,
@@ -1568,7 +1670,11 @@ def embedding_status(
 ) -> dict[str, Any]:
     terminology_key = normalize_terminology_key(terminology_key)
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         version = resolve_terminology_version(
             conn,
             terminology_key=terminology_key,
@@ -1610,8 +1716,12 @@ def embedding_status(
                         """
                     ).format(table_name=sql.Identifier(table_name))
                 ).fetchone()
-                model_payload["embedded_concept_count"] = int(row["embedded_concept_count"])
-                model_payload["last_embedding_updated_at"] = row["last_embedding_updated_at"]
+                model_payload["embedded_concept_count"] = int(
+                    row["embedded_concept_count"]
+                )
+                model_payload["last_embedding_updated_at"] = row[
+                    "last_embedding_updated_at"
+                ]
             else:
                 model_payload["embedded_concept_count"] = 0
                 model_payload["last_embedding_updated_at"] = None
@@ -1670,7 +1780,11 @@ def get_embedding_model(
 ) -> dict[str, Any] | None:
     terminology_key = normalize_terminology_key(terminology_key)
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         version_key = str(
             resolve_terminology_version(
                 conn,
@@ -1770,7 +1884,10 @@ def register_embedding_model(
         dimensions=dimensions,
         storage_type=storage_type,
     )
-    if terminology_key == DEFAULT_TERMINOLOGY_KEY and version_key == DEFAULT_TERMINOLOGY_VERSION_KEY:
+    if (
+        terminology_key == DEFAULT_TERMINOLOGY_KEY
+        and version_key == DEFAULT_TERMINOLOGY_VERSION_KEY
+    ):
         migrate_legacy_embeddings(conn, model_key=model_key, dimensions=dimensions)
 
 
@@ -1788,7 +1905,7 @@ def embedding_table_name(
     terminology_key = normalize_terminology_key(terminology_key)
     version_key = normalize_version_key(terminology_version)
     digest = hashlib.sha1(
-        f"{terminology_key}:{version_key}:{model_key}:{dimensions}".encode("utf-8")
+        f"{terminology_key}:{version_key}:{model_key}:{dimensions}".encode()
     ).hexdigest()[:8]
     return (
         f"concept_embedding_{_safe_index_suffix(f'{terminology_key}_{version_key}')}_"
@@ -1920,7 +2037,7 @@ def _embedding_index_name(
     terminology_key = normalize_terminology_key(terminology_key)
     version_key = normalize_version_key(terminology_version)
     digest = hashlib.sha1(
-        f"{terminology_key}:{version_key}:{model_key}:{dimensions}".encode("utf-8")
+        f"{terminology_key}:{version_key}:{model_key}:{dimensions}".encode()
     ).hexdigest()[:8]
     return (
         f"idx_embedding_{_safe_index_suffix(f'{terminology_key}_{version_key}')}_"
@@ -2047,7 +2164,9 @@ def iter_embedding_inputs(
                 WHERE e.concept_id = d.concept_id
             )
             """
-            ).format(table_name=sql.Identifier(table_name)).as_string(conn)
+            )
+            .format(table_name=sql.Identifier(table_name))
+            .as_string(conn)
         )
     page_size = max(fetch_size, 1)
     remaining = limit
@@ -2058,7 +2177,9 @@ def iter_embedding_inputs(
         if last_concept_id is not None:
             filters.append("d.concept_id > %s")
             params.append(last_concept_id)
-        current_page_size = page_size if remaining is None else min(page_size, remaining)
+        current_page_size = (
+            page_size if remaining is None else min(page_size, remaining)
+        )
         params.append(current_page_size)
         where_sql = f"WHERE {' AND '.join(filters)}" if filters else ""
         rows = conn.execute(
@@ -2140,7 +2261,9 @@ def count_embedding_inputs(
                 WHERE e.concept_id = d.concept_id
             )
             """
-            ).format(table_name=sql.Identifier(table_name)).as_string(conn)
+            )
+            .format(table_name=sql.Identifier(table_name))
+            .as_string(conn)
         )
     where_sql = f"WHERE {' AND '.join(filters)}" if filters else ""
     row = conn.execute(
@@ -2212,7 +2335,9 @@ def delete_model_embeddings_outside_filter(
         ).format(
             table_name=sql.Identifier(table_name),
             concept_table=sql.Identifier(concept_table),
-            remove_sql=sql.SQL(" OR ").join(sql.SQL(clause) for clause in remove_clauses),
+            remove_sql=sql.SQL(" OR ").join(
+                sql.SQL(clause) for clause in remove_clauses
+            ),
         ),
         params,
     )
@@ -2325,7 +2450,9 @@ def resolve_vector_search_strategy(
             "vectorSearchStrategy must be one of: halfvec_rerank, full_exact, halfvec_only"
         )
     if storage_type != HALFVEC_STORAGE and requested_strategy is not None:
-        raise ValueError("vectorSearchStrategy is only supported for halfvec-backed models")
+        raise ValueError(
+            "vectorSearchStrategy is only supported for halfvec-backed models"
+        )
     if storage_type != HALFVEC_STORAGE:
         return HALFVEC_RERANK_STRATEGY
     return strategy
@@ -2363,12 +2490,17 @@ def vector_search_concepts(
         storage_type=storage_type,
         requested_strategy=vector_search_strategy,
     )
-    table_name = str(model.get("embedding_table") or embedding_table_name(
-        terminology_key=terminology_key,
-        terminology_version=str(model.get("terminology_version") or DEFAULT_TERMINOLOGY_VERSION_KEY),
-        model_key=model_key,
-        dimensions=dimensions,
-    ))
+    table_name = str(
+        model.get("embedding_table")
+        or embedding_table_name(
+            terminology_key=terminology_key,
+            terminology_version=str(
+                model.get("terminology_version") or DEFAULT_TERMINOLOGY_VERSION_KEY
+            ),
+            model_key=model_key,
+            dimensions=dimensions,
+        )
+    )
     if len(embedding) != dimensions:
         raise ValueError(
             f"Expected {dimensions} embedding dimensions for {model_key!r}, got {len(embedding)}"
@@ -2379,18 +2511,30 @@ def vector_search_concepts(
     )
     active_sql = "AND active" if active_only else ""
     joined_active_sql = "AND d.active" if active_only else ""
-    semantic_sql, semantic_params = _semantic_tags_filter(semantic_tags, table_alias=None)
+    semantic_sql, semantic_params = _semantic_tags_filter(
+        semantic_tags, table_alias=None
+    )
     semantic_filter_sql = f"AND {semantic_sql}" if semantic_sql else ""
-    semantic_sql_d, semantic_params_d = _semantic_tags_filter(semantic_tags, table_alias="d")
+    semantic_sql_d, semantic_params_d = _semantic_tags_filter(
+        semantic_tags, table_alias="d"
+    )
     semantic_filter_sql_d = f"AND {semantic_sql_d}" if semantic_sql_d else ""
-    semantic_sql_c, semantic_params_c = _semantic_tags_filter(semantic_tags, table_alias="c")
+    semantic_sql_c, semantic_params_c = _semantic_tags_filter(
+        semantic_tags, table_alias="c"
+    )
     semantic_filter_sql_c = f"AND {semantic_sql_c}" if semantic_sql_c else ""
-    candidate_columns = concept_columns(table_alias="c", include_details=include_details)
+    candidate_columns = concept_columns(
+        table_alias="c", include_details=include_details
+    )
     document_columns = concept_columns(table_alias="d", include_details=include_details)
     vector = _format_vector(embedding)
     query_info: dict[str, Any] | None = None
     with connect_db() as conn:
-        init_schema(conn, terminology_key=terminology_key, terminology_version=terminology_version)
+        init_schema(
+            conn,
+            terminology_key=terminology_key,
+            terminology_version=terminology_version,
+        )
         version = resolve_terminology_version(
             conn,
             terminology_key=terminology_key,
@@ -2407,7 +2551,10 @@ def vector_search_concepts(
         )
         conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
         conn.execute("SET LOCAL hnsw.ef_search = 100")
-        if storage_type == HALFVEC_STORAGE and vector_search_strategy == FULL_EXACT_STRATEGY:
+        if (
+            storage_type == HALFVEC_STORAGE
+            and vector_search_strategy == FULL_EXACT_STRATEGY
+        ):
             if ancestor_concept_id is not None:
                 half_scope_sql, half_scope_params = _scope_clause(
                     ancestor_concept_id=ancestor_concept_id,
@@ -2597,7 +2744,9 @@ def vector_search_concepts(
                 query_info["candidateLimit"] = candidate_limit
                 query_info["vectorSearchStrategy"] = vector_search_strategy
                 query_info["rerank"] = (
-                    "none" if vector_search_strategy == HALFVEC_ONLY_STRATEGY else "full_vector_cosine"
+                    "none"
+                    if vector_search_strategy == HALFVEC_ONLY_STRATEGY
+                    else "full_vector_cosine"
                 )
         elif ancestor_concept_id is not None:
             params: list[Any] = [

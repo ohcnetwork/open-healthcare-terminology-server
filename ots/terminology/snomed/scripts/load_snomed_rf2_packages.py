@@ -16,12 +16,12 @@ from psycopg import sql
 
 from ots import config
 from ots.db.terminology_postgres import (
-    connect_db,
     concept_table_name,
+    connect_db,
     resync_terminology_edition,
 )
-from ots.terminology.snomed.scripts.load_snomed_postgres import load_snomed_rf2_package
 from ots.terminology.snomed.model import TERMINOLOGY
+from ots.terminology.snomed.scripts.load_snomed_postgres import load_snomed_rf2_package
 from ots.terminology.snomed.scripts.rf2_packages import (
     discover_snomed_rf2_packages,
     ensure_extracted_package,
@@ -157,7 +157,9 @@ def main() -> int:
 
     start = time.perf_counter()
     if args.recreate_edition:
-        drop_target_table(terminology=TERMINOLOGY.key, edition_version=args.edition_version)
+        drop_target_table(
+            terminology=TERMINOLOGY.key, edition_version=args.edition_version
+        )
 
     if args.base_version:
         result = resync_terminology_edition(

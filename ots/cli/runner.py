@@ -19,7 +19,7 @@ def patched_argv(command_name: str, args: Sequence[str]):
 
 def run_module_main(module_name: str, args: Sequence[str]) -> int:
     module: ModuleType = importlib.import_module(module_name)
-    main = getattr(module, "main")
+    main = module.main
     with patched_argv(module_name, args):
         result = main()
     return int(result or 0)

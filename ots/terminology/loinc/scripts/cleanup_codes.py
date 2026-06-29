@@ -7,8 +7,9 @@ import argparse
 import re
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -16,7 +17,7 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from ots import config
-from ots.db.terminology_postgres import connect_db, concept_table_name
+from ots.db.terminology_postgres import concept_table_name, connect_db
 from ots.terminology.loinc.scripts.load_loinc_postgres import DEFAULT_TERMINOLOGY
 
 
@@ -28,7 +29,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def batched(items: Iterable[dict[str, Any]], batch_size: int) -> Iterable[list[dict[str, Any]]]:
+def batched(
+    items: Iterable[dict[str, Any]], batch_size: int
+) -> Iterable[list[dict[str, Any]]]:
     batch: list[dict[str, Any]] = []
     for item in items:
         batch.append(item)
@@ -115,7 +118,9 @@ def main() -> int:
             """
         ).format(concept_table=sql.Identifier(concept_table))
         while args.limit is None or scanned < args.limit:
-            remaining = args.limit - scanned if args.limit is not None else args.batch_size
+            remaining = (
+                args.limit - scanned if args.limit is not None else args.batch_size
+            )
             limit = min(args.batch_size, remaining)
             rows = conn.execute(select_sql, (last_concept_id, limit)).fetchall()
             if not rows:

@@ -5,12 +5,12 @@ from typing import Any
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 
+from ots import config
 from ots.api.schemas import (
     CustomRecordUpsertRequest,
     EmbeddingPopulateRequest,
     TerminologyCreateRequest,
 )
-from ots import config
 
 
 def _json_schema(model) -> dict[str, Any]:
@@ -140,7 +140,9 @@ def openapi_schema() -> dict[str, Any]:
                         _path_param("terminology", "string"),
                         _path_param("code", "string"),
                     ],
-                    "responses": {"200": {"description": "FHIR Parameters lookup response"}},
+                    "responses": {
+                        "200": {"description": "FHIR Parameters lookup response"}
+                    },
                 }
             },
             "/ValueSet/$expand": {
@@ -164,7 +166,11 @@ def openapi_schema() -> dict[str, Any]:
                             "application/json": {"schema": {"type": "object"}},
                         },
                     },
-                    "responses": {"200": {"description": "CARE results plus FHIR ValueSet expansion"}},
+                    "responses": {
+                        "200": {
+                            "description": "CARE results plus FHIR ValueSet expansion"
+                        }
+                    },
                 }
             },
             "/CodeSystem/$lookup": {
@@ -176,7 +182,9 @@ def openapi_schema() -> dict[str, Any]:
                         _query_param("version", "string", False),
                         _query_param("code", "string", True),
                     ],
-                    "responses": {"200": {"description": "FHIR Parameters lookup response"}},
+                    "responses": {
+                        "200": {"description": "FHIR Parameters lookup response"}
+                    },
                 },
                 "post": {
                     "summary": "FHIR CodeSystem lookup with Parameters",
@@ -188,7 +196,9 @@ def openapi_schema() -> dict[str, Any]:
                             "application/json": {"schema": {"type": "object"}},
                         },
                     },
-                    "responses": {"200": {"description": "FHIR Parameters lookup response"}},
+                    "responses": {
+                        "200": {"description": "FHIR Parameters lookup response"}
+                    },
                 },
             },
             "/concepts/{concept_id}": {
@@ -228,7 +238,9 @@ def openapi_schema() -> dict[str, Any]:
                     "parameters": [
                         _query_param("q", "string", True),
                         _query_param("terminology", "string", False),
-                        _query_param("mode", "string", False, enum=["lexical", "vector"]),
+                        _query_param(
+                            "mode", "string", False, enum=["lexical", "vector"]
+                        ),
                         _query_param("limit", "integer", False),
                         _query_param("detail", "string", False, enum=["basic", "full"]),
                         _query_param("semanticTag", "string", False),
@@ -267,7 +279,9 @@ def openapi_schema() -> dict[str, Any]:
                 "get": {
                     "summary": "Embedding job configuration",
                     "tags": ["Embeddings"],
-                    "responses": {"200": {"description": "Celery embedding job configuration"}},
+                    "responses": {
+                        "200": {"description": "Celery embedding job configuration"}
+                    },
                 },
                 "post": {
                     "summary": "Start background embedding population",

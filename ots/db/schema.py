@@ -5,7 +5,6 @@ import re
 from psycopg import sql
 
 from ots.terminology import (
-    DEFAULT_TERMINOLOGY_VERSION_KEY,
     concept_table_name,
     normalize_terminology_key,
     normalize_version_key,
@@ -131,7 +130,9 @@ def ensure_base_schema(conn) -> None:
             )
             """
         )
-    ensure_column(conn, "terminology_system", "kind", "kind TEXT NOT NULL DEFAULT 'imported'")
+    ensure_column(
+        conn, "terminology_system", "kind", "kind TEXT NOT NULL DEFAULT 'imported'"
+    )
     ensure_column(conn, "terminology_system", "description", "description TEXT")
     ensure_column(
         conn,
@@ -275,7 +276,9 @@ def ensure_embedding_model_schema(conn) -> None:
             """
         ).fetchone()
         if pkey_row is not None:
-            cur.execute("ALTER TABLE embedding_model DROP CONSTRAINT embedding_model_pkey")
+            cur.execute(
+                "ALTER TABLE embedding_model DROP CONSTRAINT embedding_model_pkey"
+            )
         create_index_if_missing(
             cur,
             "idx_embedding_model_terminology_model_key",
@@ -350,7 +353,9 @@ def create_concept_document_table(
             ),
             (
                 f"idx_{suffix}_concept_document_search_vector",
-                sql.SQL("CREATE INDEX {index_name} ON {table_name} USING GIN(search_vector)"),
+                sql.SQL(
+                    "CREATE INDEX {index_name} ON {table_name} USING GIN(search_vector)"
+                ),
             ),
             (
                 f"idx_{suffix}_concept_document_preferred_trgm",
@@ -375,23 +380,33 @@ def create_concept_document_table(
             ),
             (
                 f"idx_{suffix}_concept_document_ancestor_ids",
-                sql.SQL("CREATE INDEX {index_name} ON {table_name} USING GIN(ancestor_ids)"),
+                sql.SQL(
+                    "CREATE INDEX {index_name} ON {table_name} USING GIN(ancestor_ids)"
+                ),
             ),
             (
                 f"idx_{suffix}_concept_document_parent_ids",
-                sql.SQL("CREATE INDEX {index_name} ON {table_name} USING GIN(parent_ids)"),
+                sql.SQL(
+                    "CREATE INDEX {index_name} ON {table_name} USING GIN(parent_ids)"
+                ),
             ),
             (
                 f"idx_{suffix}_concept_document_child_ids",
-                sql.SQL("CREATE INDEX {index_name} ON {table_name} USING GIN(child_ids)"),
+                sql.SQL(
+                    "CREATE INDEX {index_name} ON {table_name} USING GIN(child_ids)"
+                ),
             ),
             (
                 f"idx_{suffix}_concept_document_synonyms",
-                sql.SQL("CREATE INDEX {index_name} ON {table_name} USING GIN(synonyms)"),
+                sql.SQL(
+                    "CREATE INDEX {index_name} ON {table_name} USING GIN(synonyms)"
+                ),
             ),
             (
                 f"idx_{suffix}_concept_document_payload_code",
-                sql.SQL("CREATE INDEX {index_name} ON {table_name} ((payload->>'code'))"),
+                sql.SQL(
+                    "CREATE INDEX {index_name} ON {table_name} ((payload->>'code'))"
+                ),
             ),
             (
                 f"idx_{suffix}_concept_document_payload_code_trgm",

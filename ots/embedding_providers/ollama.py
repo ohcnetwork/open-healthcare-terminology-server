@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ots.embedding_providers.base import EmbeddingProvider
 from ots.embedding_providers.utils import normalize_vectors
@@ -33,7 +34,11 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
 
     @classmethod
     def normalize_options(cls, options: dict[str, Any]) -> dict[str, Any]:
-        return {key: value for key, value in options.items() if key == "host" and value is not None}
+        return {
+            key: value
+            for key, value in options.items()
+            if key == "host" and value is not None
+        }
 
     def __init__(
         self,

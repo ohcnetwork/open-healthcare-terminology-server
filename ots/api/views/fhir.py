@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from starlette.concurrency import run_in_threadpool
@@ -16,7 +16,6 @@ from ots.db.terminology_postgres import (
     get_concept_by_code,
 )
 from ots.terminology import IMPORTED_TERMINOLOGIES, normalize_terminology_key
-
 
 SYSTEM_ALIASES = {
     "snomed": "snomed",
@@ -92,7 +91,9 @@ async def request_json_or_empty(request: Request) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def value_set_from_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def value_set_from_payload(
+    payload: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
     if payload.get("resourceType") == "Parameters":
         params = parameters_to_dict(payload)
         value_set = params.get("valueSet")
@@ -146,8 +147,8 @@ def parse_expand_options(
         query_params.get("includeDesignations") or params.get("includeDesignations"),
         default=False,
     )
-    display_language = (
-        query_params.get("displayLanguage") or params.get("displayLanguage")
+    display_language = query_params.get("displayLanguage") or params.get(
+        "displayLanguage"
     )
     terminology_version = (
         query_params.get("version")
@@ -172,10 +173,7 @@ def filter_property_name(value: Any) -> str:
 
 
 def semantic_tag_values(value: Any) -> list[str]:
-    if isinstance(value, list | tuple):
-        values = value
-    else:
-        values = str(value or "").split(",")
+    values = value if isinstance(value, list | tuple) else str(value or "").split(",")
     return [str(item).strip() for item in values if str(item).strip()]
 
 
@@ -188,7 +186,9 @@ def include_to_ids(
     terminology_key = terminology_for_system(system)
     if not terminology_key:
         raise ValueError(f"Unsupported or missing code system: {system!r}")
-    terminology_version = str(include.get("version") or default_version or "").strip() or None
+    terminology_version = (
+        str(include.get("version") or default_version or "").strip() or None
+    )
 
     exact_ids: list[int] = []
     isa_ids: list[int] = []
@@ -226,14 +226,23 @@ def include_to_ids(
             continue
         if property_name in {"semantictag", "semantic_tag"}:
             if op not in {"=", "in"}:
-                raise ValueError("ValueSet semanticTag filter supports only '=' and 'in'")
+                raise ValueError(
+                    "ValueSet semanticTag filter supports only '=' and 'in'"
+                )
             semantic_tags.extend(semantic_tag_values(value))
             continue
         raise ValueError(
             "Only ValueSet include filter properties 'concept' and 'semanticTag' are supported"
         )
 
-    return terminology_key, terminology_version, exact_ids, isa_ids, semantic_tags or None, system
+    return (
+        terminology_key,
+        terminology_version,
+        exact_ids,
+        isa_ids,
+        semantic_tags or None,
+        system,
+    )
 
 
 def concept_by_fhir_code(
@@ -301,7 +310,10 @@ def row_designations(
         seen.add(key)
         item: dict[str, Any] = {
             "value": text,
-            "use": {"system": "http://terminology.hl7.org/CodeSystem/designation-usage", "code": kind},
+            "use": {
+                "system": "http://terminology.hl7.org/CodeSystem/designation-usage",
+                "code": kind,
+            },
         }
         if normalized_language:
             item["language"] = normalized_language
@@ -314,7 +326,11 @@ def row_designations(
     for description in row.get("descriptions") or []:
         if not isinstance(description, dict):
             continue
-        term = description.get("term") or description.get("value") or description.get("display")
+        term = (
+            description.get("term")
+            or description.get("value")
+            or description.get("display")
+        )
         kind = str(description.get("type") or description.get("typeId") or "synonym")
         language = description.get("languageCode") or description.get("language")
         add(term, kind=kind, language=language)
@@ -492,7 +508,9 @@ def vector_expand_include(
         for row in exact_rows:
             rows_by_key.setdefault(int(row["concept_id"]), row)
 
-    ancestor_ids: list[int | None] = isa_ids or ([None] if semantic_tags and not exact_ids else [])
+    ancestor_ids: list[int | None] = isa_ids or (
+        [None] if semantic_tags and not exact_ids else []
+    )
     for ancestor_id in ancestor_ids:
         response = semantic_search_sync(
             query=text_filter,
@@ -522,7 +540,9 @@ async def value_set_expand_endpoint(request: Request) -> JSONResponse:
     payload = await request_json_or_empty(request)
     value_set, params = value_set_from_payload(payload)
     if not value_set:
-        return json_error("A ValueSet resource or Parameters.valueSet is required", status_code=422)
+        return json_error(
+            "A ValueSet resource or Parameters.valueSet is required", status_code=422
+        )
     try:
         includes = value_set_includes(value_set)
         (
@@ -633,7 +653,7 @@ async def value_set_expand_endpoint(request: Request) -> JSONResponse:
         "url": value_set.get("url"),
         "status": value_set.get("status", "active"),
         "expansion": {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "total": max(total, len(contains)),
             "offset": offset,
             "contains": page,
@@ -665,9 +685,7 @@ async def code_system_lookup_endpoint(request: Request) -> JSONResponse:
     payload = await request_json_or_empty(request)
     values = lookup_args_from_payload(payload)
     system = (
-        request.query_params.get("system")
-        or values.get("system")
-        or values.get("url")
+        request.query_params.get("system") or values.get("system") or values.get("url")
     )
     code = request.query_params.get("code") or values.get("code")
     terminology_version = (
@@ -695,10 +713,9 @@ async def code_system_lookup_endpoint(request: Request) -> JSONResponse:
 async def terminology_lookup_endpoint(request: Request) -> JSONResponse:
     terminology_key = str(request.path_params["terminology"]).strip()
     code = str(request.path_params["code"]).strip()
-    terminology_version = (
-        request.query_params.get("version")
-        or request.query_params.get("terminologyVersion")
-    )
+    terminology_version = request.query_params.get(
+        "version"
+    ) or request.query_params.get("terminologyVersion")
     if not terminology_key or not code:
         return json_error("terminology and code are required", status_code=422)
     row = await run_in_threadpool(
@@ -709,4 +726,6 @@ async def terminology_lookup_endpoint(request: Request) -> JSONResponse:
     )
     if row is None:
         return json_error("Code not found", status_code=404)
-    return json_response(lookup_parameters(row, system=system_for_terminology(terminology_key)))
+    return json_response(
+        lookup_parameters(row, system=system_for_terminology(terminology_key))
+    )

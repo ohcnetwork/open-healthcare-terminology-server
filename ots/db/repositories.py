@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import func, select
 
@@ -79,11 +80,15 @@ def list_terminology_systems() -> list[dict[str, Any]]:
         return [terminology_to_dict(row) for row in rows]
 
 
-def list_terminology_versions(terminology_key: str | None = None) -> list[dict[str, Any]]:
+def list_terminology_versions(
+    terminology_key: str | None = None,
+) -> list[dict[str, Any]]:
     with session_scope() as session:
         statement = select(TerminologyVersion)
         if terminology_key:
-            statement = statement.where(TerminologyVersion.terminology_key == terminology_key)
+            statement = statement.where(
+                TerminologyVersion.terminology_key == terminology_key
+            )
         rows = session.scalars(
             statement.order_by(
                 TerminologyVersion.terminology_key,
@@ -98,7 +103,9 @@ def list_release_packages(terminology_key: str | None = None) -> list[dict[str, 
     with session_scope() as session:
         statement = select(TerminologyReleasePackage)
         if terminology_key:
-            statement = statement.where(TerminologyReleasePackage.terminology_key == terminology_key)
+            statement = statement.where(
+                TerminologyReleasePackage.terminology_key == terminology_key
+            )
         rows = session.scalars(
             statement.order_by(
                 TerminologyReleasePackage.terminology_key,
@@ -117,9 +124,13 @@ def list_edition_packages(
     with session_scope() as session:
         statement = select(TerminologyEditionPackage)
         if terminology_key:
-            statement = statement.where(TerminologyEditionPackage.terminology_key == terminology_key)
+            statement = statement.where(
+                TerminologyEditionPackage.terminology_key == terminology_key
+            )
         if version_key:
-            statement = statement.where(TerminologyEditionPackage.version_key == version_key)
+            statement = statement.where(
+                TerminologyEditionPackage.version_key == version_key
+            )
         rows = session.scalars(
             statement.order_by(
                 TerminologyEditionPackage.terminology_key,

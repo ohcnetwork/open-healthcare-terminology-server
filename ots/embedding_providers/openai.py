@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ots.embedding_providers.base import EmbeddingProvider
 from ots.embedding_providers.utils import normalize_vectors
@@ -38,13 +39,19 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         return {
             "api_key": os.getenv("OPENAI_API_KEY") or None,
             "timeout": _env_float("OTS_OPENAI_TIMEOUT", DEFAULT_OPENAI_TIMEOUT),
-            "max_retries": _env_int("OTS_OPENAI_MAX_RETRIES", DEFAULT_OPENAI_MAX_RETRIES),
+            "max_retries": _env_int(
+                "OTS_OPENAI_MAX_RETRIES", DEFAULT_OPENAI_MAX_RETRIES
+            ),
         }
 
     @classmethod
     def normalize_options(cls, options: dict[str, Any]) -> dict[str, Any]:
         allowed = {"api_key", "timeout", "max_retries"}
-        return {key: value for key, value in options.items() if key in allowed and value is not None}
+        return {
+            key: value
+            for key, value in options.items()
+            if key in allowed and value is not None
+        }
 
     def __init__(
         self,
@@ -85,6 +92,10 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         }
         if self.dimensions is not None:
             params["dimensions"] = self.dimensions
-        client = self.client.with_options(timeout=self.timeout) if self.timeout is not None else self.client
+        client = (
+            self.client.with_options(timeout=self.timeout)
+            if self.timeout is not None
+            else self.client
+        )
         response = client.embeddings.create(**params)
         return normalize_vectors([item.embedding for item in response.data])

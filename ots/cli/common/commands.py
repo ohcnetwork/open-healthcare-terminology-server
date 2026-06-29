@@ -12,7 +12,9 @@ app = typer.Typer(help="Shared maintenance commands.", no_args_is_help=True)
 @app.command("embed", context_settings=CONTEXT_SETTINGS)
 def embed(ctx: typer.Context) -> None:
     """Populate embeddings."""
-    raise typer.Exit(run_module_main("ots.cli.common.update_concept_embeddings", ctx.args))
+    raise typer.Exit(
+        run_module_main("ots.cli.common.update_concept_embeddings", ctx.args)
+    )
 
 
 @app.command("dump-db", context_settings=CONTEXT_SETTINGS)
@@ -36,4 +38,6 @@ def lexical_indexes(ctx: typer.Context) -> None:
 @app.command("resync-edition", context_settings=CONTEXT_SETTINGS)
 def resync_edition(ctx: typer.Context) -> None:
     """Refresh a composed edition from a base edition."""
-    raise typer.Exit(run_module_main("ots.cli.common.resync_terminology_edition", ctx.args))
+    raise typer.Exit(
+        run_module_main("ots.cli.common.resync_terminology_edition", ctx.args)
+    )

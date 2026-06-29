@@ -10,8 +10,9 @@ import sys
 import time
 import zipfile
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -21,10 +22,8 @@ from psycopg.types.json import Jsonb
 from ots import config
 from ots.cli.common.imported_loader_utils import batched, upsert_documents
 from ots.db.terminology_postgres import (
-    DEFAULT_DATABASE_URL,
-    DEFAULT_EMBEDDING_DIMENSIONS,
-    connect_db,
     concept_table_name,
+    connect_db,
     init_schema,
 )
 from ots.terminology import build_search_text
@@ -39,10 +38,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--database-url", default=config.DATABASE_URL)
     parser.add_argument("--version", help="Terminology version key to import")
-    parser.add_argument("--base-version", help="Base/core edition version this edition composes")
-    parser.add_argument("--package-key", help="Release package key registered for this import")
-    parser.add_argument("--package-version", help="Release package version registered for this import")
-    parser.add_argument("--package-type", default="release", help="Release package type")
+    parser.add_argument(
+        "--base-version", help="Base/core edition version this edition composes"
+    )
+    parser.add_argument(
+        "--package-key", help="Release package key registered for this import"
+    )
+    parser.add_argument(
+        "--package-version", help="Release package version registered for this import"
+    )
+    parser.add_argument(
+        "--package-type", default="release", help="Release package type"
+    )
     parser.add_argument(
         "--default-version",
         action="store_true",
@@ -89,7 +96,11 @@ def row_identity(row: dict[str, str]) -> str:
 
 
 def row_uri(row: dict[str, str]) -> str:
-    return clean(row.get("Foundation URI")) or clean(row.get("Linearization URI")) or row_identity(row)
+    return (
+        clean(row.get("Foundation URI"))
+        or clean(row.get("Linearization URI"))
+        or row_identity(row)
+    )
 
 
 def browser_url(value: str | None) -> str | None:
@@ -102,14 +113,24 @@ def browser_url(value: str | None) -> str | None:
 
 def iter_tabulation_rows(source: Path) -> Iterable[dict[str, str]]:
     with zipfile.ZipFile(source) as archive:
-        names = [name for name in archive.namelist() if name.endswith("SimpleTabulation-ICD-11-MMS-en.txt")]
+        names = [
+            name
+            for name in archive.namelist()
+            if name.endswith("SimpleTabulation-ICD-11-MMS-en.txt")
+        ]
         if not names:
-            raise FileNotFoundError("Could not find SimpleTabulation-ICD-11-MMS-en.txt in ICD-11 ZIP")
+            raise FileNotFoundError(
+                "Could not find SimpleTabulation-ICD-11-MMS-en.txt in ICD-11 ZIP"
+            )
         with archive.open(names[0]) as handle:
             text = (line.decode("utf-8-sig", errors="replace") for line in handle)
             reader = csv.DictReader(text, delimiter="\t")
             for row in reader:
-                if row_identity(row) and clean(row.get("Title")) and clean(row.get("ClassKind")):
+                if (
+                    row_identity(row)
+                    and clean(row.get("Title"))
+                    and clean(row.get("ClassKind"))
+                ):
                     yield row
 
 
@@ -136,7 +157,9 @@ def ancestor_keys(
     return ancestors
 
 
-def build_documents(rows: list[dict[str, str]], *, terminology_key: str) -> Iterable[dict[str, Any]]:
+def build_documents(
+    rows: list[dict[str, str]], *, terminology_key: str
+) -> Iterable[dict[str, Any]]:
     key_by_uri = {row_uri(row): row_identity(row) for row in rows}
     rows_by_key = {row_identity(row): row for row in rows}
     parent_by_key: dict[str, str | None] = {}
@@ -148,7 +171,9 @@ def build_documents(rows: list[dict[str, str]], *, terminology_key: str) -> Iter
     for key, parent in parent_by_key.items():
         if parent:
             child_keys[parent].append(key)
-    concept_id_by_key = {key: TERMINOLOGY.code_to_concept_id(key) for key in rows_by_key}
+    concept_id_by_key = {
+        key: TERMINOLOGY.code_to_concept_id(key) for key in rows_by_key
+    }
     ancestor_cache: dict[str, list[str]] = {}
     for key, row in rows_by_key.items():
         code = clean(row.get("Code"))
@@ -158,12 +183,17 @@ def build_documents(rows: list[dict[str, str]], *, terminology_key: str) -> Iter
         primary_tabulation = clean(row.get("Primary tabulation")).casefold() == "true"
         parent = parent_by_key.get(key)
         parents = [concept_id_by_key[parent]] if parent else []
-        ancestors = [concept_id_by_key[item] for item in ancestor_keys(key, parent_by_key, ancestor_cache)]
+        ancestors = [
+            concept_id_by_key[item]
+            for item in ancestor_keys(key, parent_by_key, ancestor_cache)
+        ]
         children = sorted(child_keys.get(key, []))
         semantic_tag = "diagnosis" if class_kind == "category" else class_kind
         chapter = clean(row.get("ChapterNo"))
         payload = {
-            "code": code or block_id or (f"chapter-{chapter}" if class_kind == "chapter" else key),
+            "code": code
+            or block_id
+            or (f"chapter-{chapter}" if class_kind == "chapter" else key),
             "icdCode": code,
             "blockId": block_id,
             "externalId": key,
@@ -183,7 +213,13 @@ def build_documents(rows: list[dict[str, str]], *, terminology_key: str) -> Iter
         }
         groupings = [
             clean(row.get(name))
-            for name in ("Grouping1", "Grouping2", "Grouping3", "Grouping4", "Grouping5")
+            for name in (
+                "Grouping1",
+                "Grouping2",
+                "Grouping3",
+                "Grouping4",
+                "Grouping5",
+            )
             if clean(row.get(name))
         ]
         coding_note = clean(row.get("CodingNote"))
@@ -235,7 +271,9 @@ def build_documents(rows: list[dict[str, str]], *, terminology_key: str) -> Iter
                     {"name": "primaryTabulation", "value": primary_tabulation},
                 ]
             ),
-            "search_text": build_search_text(title, coding_note, code, block_id, groupings),
+            "search_text": build_search_text(
+                title, coding_note, code, block_id, groupings
+            ),
             "payload": Jsonb(payload),
         }
 
@@ -262,9 +300,11 @@ def main() -> None:
             embedding_dimensions=args.embedding_dimensions,
         )
         if args.recreate:
-            conn.execute(sql.SQL("DROP TABLE IF EXISTS {table_name} CASCADE").format(
-                table_name=sql.Identifier(concept_table)
-            ))
+            conn.execute(
+                sql.SQL("DROP TABLE IF EXISTS {table_name} CASCADE").format(
+                    table_name=sql.Identifier(concept_table)
+                )
+            )
             init_schema(
                 conn,
                 terminology_key=terminology_key,

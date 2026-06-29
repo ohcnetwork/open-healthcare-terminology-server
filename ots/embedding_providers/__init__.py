@@ -10,9 +10,9 @@ from ots.embedding_providers.fastembed import (
 from ots.embedding_providers.ollama import (
     DEFAULT_OLLAMA_EMBEDDING_DIMENSIONS,
     DEFAULT_OLLAMA_EMBEDDING_MODEL,
-    OllamaEmbeddingProvider,
     QWEN3_EMBEDDING_DIMENSIONS,
     QWEN3_EMBEDDING_MODEL,
+    OllamaEmbeddingProvider,
 )
 from ots.embedding_providers.openai import (
     DEFAULT_OPENAI_EMBEDDING_DIMENSIONS,
@@ -51,13 +51,13 @@ __all__ = [
     "DEFAULT_OPENAI_EMBEDDING_MODEL",
     "DEFAULT_QWEN3_EMBEDDING_DIMENSIONS",
     "DEFAULT_QWEN3_EMBEDDING_MODEL",
-    "EmbeddingProvider",
-    "FastEmbedEmbeddingProvider",
     "MAX_INDEXED_HALFVEC_DIMENSIONS",
     "MAX_INDEXED_VECTOR_DIMENSIONS",
+    "REGISTERED_EMBEDDING_PROVIDERS",
+    "EmbeddingProvider",
+    "FastEmbedEmbeddingProvider",
     "OllamaEmbeddingProvider",
     "OpenAIEmbeddingProvider",
-    "REGISTERED_EMBEDDING_PROVIDERS",
     "create_embedder",
     "default_dimensions",
     "default_provider_model",

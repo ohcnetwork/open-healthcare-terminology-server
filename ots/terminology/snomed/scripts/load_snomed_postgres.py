@@ -10,8 +10,9 @@ import re
 import sys
 import time
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -20,10 +21,8 @@ from psycopg.types.json import Jsonb
 
 from ots import config
 from ots.db.terminology_postgres import (
-    DEFAULT_DATABASE_URL,
-    DEFAULT_EMBEDDING_DIMENSIONS,
-    connect_db,
     concept_table_name,
+    connect_db,
     init_schema,
 )
 from ots.terminology.snomed.model import SnomedTerminology
@@ -76,12 +75,24 @@ def parse_args() -> argparse.Namespace:
         help="Postgres URL. OTS_DATABASE_URL is used by the API.",
     )
     parser.add_argument("--version", help="Terminology version key to import")
-    parser.add_argument("--base-version", help="Base/core edition version this edition composes")
-    parser.add_argument("--package-key", help="Release package key registered for this import")
-    parser.add_argument("--package-version", help="Release package version registered for this import")
-    parser.add_argument("--package-type", default="release", help="Release package type")
-    parser.add_argument("--package-role", default="primary", help="Package role in this edition")
-    parser.add_argument("--package-source-uri", help="Original path/URI for the release package")
+    parser.add_argument(
+        "--base-version", help="Base/core edition version this edition composes"
+    )
+    parser.add_argument(
+        "--package-key", help="Release package key registered for this import"
+    )
+    parser.add_argument(
+        "--package-version", help="Release package version registered for this import"
+    )
+    parser.add_argument(
+        "--package-type", default="release", help="Release package type"
+    )
+    parser.add_argument(
+        "--package-role", default="primary", help="Package role in this edition"
+    )
+    parser.add_argument(
+        "--package-source-uri", help="Original path/URI for the release package"
+    )
     parser.add_argument(
         "--package-metadata-json",
         help="JSON object stored with the release package registration",
@@ -224,7 +235,9 @@ def unique_texts(values: Iterable[str], *, limit: int | None = None) -> list[str
     return result
 
 
-def load_concepts(path: Path, *, include_inactive: bool, limit: int | None) -> dict[int, dict[str, Any]]:
+def load_concepts(
+    path: Path, *, include_inactive: bool, limit: int | None
+) -> dict[int, dict[str, Any]]:
     concepts: dict[int, dict[str, Any]] = {}
     for row in iter_rf2(path):
         if not include_inactive and not is_active(row):
@@ -271,7 +284,9 @@ def load_descriptions(
     return descriptions_by_id, descriptions_by_concept
 
 
-def apply_language_refset(path: Path, descriptions_by_id: dict[int, dict[str, Any]]) -> None:
+def apply_language_refset(
+    path: Path, descriptions_by_id: dict[int, dict[str, Any]]
+) -> None:
     for row in iter_rf2(path):
         if not is_active(row):
             continue
@@ -293,7 +308,9 @@ def apply_language_refset(path: Path, descriptions_by_id: dict[int, dict[str, An
             description["gbAcceptabilityId"] = acceptability_id
 
 
-def load_text_definitions(path: Path | None, concepts: dict[int, dict[str, Any]]) -> dict[int, list[dict[str, Any]]]:
+def load_text_definitions(
+    path: Path | None, concepts: dict[int, dict[str, Any]]
+) -> dict[int, list[dict[str, Any]]]:
     definitions: dict[int, list[dict[str, Any]]] = defaultdict(list)
     if path is None:
         return definitions
@@ -496,12 +513,18 @@ def choose_fsn(descriptions: list[dict[str, Any]]) -> str | None:
 
 
 def is_preferred(description: dict[str, Any], *, refset_id: int) -> bool:
-    key = "usAcceptabilityId" if refset_id == SNOMED_US_ENGLISH_REFSET_ID else "gbAcceptabilityId"
+    key = (
+        "usAcceptabilityId"
+        if refset_id == SNOMED_US_ENGLISH_REFSET_ID
+        else "gbAcceptabilityId"
+    )
     return description.get(key) == SNOMED_PREFERRED_ACCEPTABILITY_ID
 
 
 def choose_preferred_term(descriptions: list[dict[str, Any]]) -> str | None:
-    synonyms = [item for item in descriptions if item["typeId"] == SNOMED_SYNONYM_TYPE_ID]
+    synonyms = [
+        item for item in descriptions if item["typeId"] == SNOMED_SYNONYM_TYPE_ID
+    ]
     for refset_id in (SNOMED_US_ENGLISH_REFSET_ID, SNOMED_GB_ENGLISH_REFSET_ID):
         for description in synonyms:
             if is_preferred(description, refset_id=refset_id):
@@ -509,7 +532,9 @@ def choose_preferred_term(descriptions: list[dict[str, Any]]) -> str | None:
     return str(synonyms[0]["term"]) if synonyms else None
 
 
-def compute_ancestors(parent_ids: dict[int, list[int]], concepts: dict[int, dict[str, Any]]) -> dict[int, list[int]]:
+def compute_ancestors(
+    parent_ids: dict[int, list[int]], concepts: dict[int, dict[str, Any]]
+) -> dict[int, list[int]]:
     cache: dict[int, tuple[int, ...]] = {}
     visiting: set[int] = set()
 
@@ -544,7 +569,9 @@ def enrich_relationships(
     for relationship in relationships:
         item = dict(relationship)
         item["typeTerm"] = concept_label(int(item["typeId"]), descriptions_by_concept)
-        item["destinationTerm"] = concept_label(int(item["destinationId"]), descriptions_by_concept)
+        item["destinationTerm"] = concept_label(
+            int(item["destinationId"]), descriptions_by_concept
+        )
         enriched.append(item)
     return enriched
 
@@ -591,16 +618,14 @@ def is_noisy_search_term(term: str | None) -> bool:
         return True
     if re.fullmatch(r"[A-Z][A-Z0-9]{4,}", text) and " " not in text:
         return True
-    if re.fullmatch(r"[A-Z0-9.]{3,}", text) and any(char.isdigit() for char in text):
-        return True
-    return False
+    return bool(
+        re.fullmatch(r"[A-Z0-9.]{3,}", text) and any(char.isdigit() for char in text)
+    )
 
 
 def clean_search_terms(values: Iterable[str | None]) -> list[str]:
     return unique_texts(
-        strip_semantic_tag(value)
-        for value in values
-        if not is_noisy_search_term(value)
+        strip_semantic_tag(value) for value in values if not is_noisy_search_term(value)
     )
 
 
@@ -730,7 +755,9 @@ def upsert_sql_for_table(table_name: str):
     return sql.SQL(UPSERT_SQL).format(concept_table=sql.Identifier(table_name))
 
 
-def batched(items: Iterable[dict[str, Any]], batch_size: int) -> Iterable[list[dict[str, Any]]]:
+def batched(
+    items: Iterable[dict[str, Any]], batch_size: int
+) -> Iterable[list[dict[str, Any]]]:
     batch: list[dict[str, Any]] = []
     for item in items:
         batch.append(item)
@@ -771,7 +798,9 @@ def build_documents(
             for description in descriptions
             if description["typeId"] == SNOMED_SYNONYM_TYPE_ID
         )
-        definition_terms = unique_texts(definition["term"] for definition in definitions)
+        definition_terms = unique_texts(
+            definition["term"] for definition in definitions
+        )
         direct_parent_ids = list(dict.fromkeys(parent_ids.get(concept_id, [])))
         direct_child_ids = list(dict.fromkeys(child_ids.get(concept_id, [])))
         all_ancestor_ids = list(dict.fromkeys(ancestor_ids.get(concept_id, [])))
@@ -810,7 +839,9 @@ def build_documents(
             "effective_time": concept["effective_time"],
             "module_id": concept["module_id"],
             "definition_status_id": concept["definition_status_id"],
-            "definition_status": label_definition_status(concept["definition_status_id"]),
+            "definition_status": label_definition_status(
+                concept["definition_status_id"]
+            ),
             "fsn": fsn,
             "preferred_term": preferred_term,
             "semantic_tag": tag,
@@ -888,11 +919,21 @@ def load_snomed_rf2_package(args: argparse.Namespace) -> dict[str, Any]:
             rf2_files(rf2_dir, "relationship_concrete_value", required=False),
             concepts,
         )
-        simple_maps = load_simple_maps(rf2_files(rf2_dir, "simple_map", required=False), concepts)
-        extended_maps = load_extended_maps(rf2_files(rf2_dir, "extended_map", required=False), concepts)
-        simple_refsets = load_simple_refsets(rf2_files(rf2_dir, "simple_refset", required=False), concepts)
-        attributes = load_attribute_values(rf2_files(rf2_dir, "attribute_value", required=False), concepts)
-        associations = load_associations(rf2_files(rf2_dir, "association", required=False), concepts)
+        simple_maps = load_simple_maps(
+            rf2_files(rf2_dir, "simple_map", required=False), concepts
+        )
+        extended_maps = load_extended_maps(
+            rf2_files(rf2_dir, "extended_map", required=False), concepts
+        )
+        simple_refsets = load_simple_refsets(
+            rf2_files(rf2_dir, "simple_refset", required=False), concepts
+        )
+        attributes = load_attribute_values(
+            rf2_files(rf2_dir, "attribute_value", required=False), concepts
+        )
+        associations = load_associations(
+            rf2_files(rf2_dir, "association", required=False), concepts
+        )
 
     print("Precomputing ancestor arrays", flush=True)
     ancestors = compute_ancestors(parent_ids, concepts)
@@ -949,7 +990,10 @@ def load_snomed_rf2_package(args: argparse.Namespace) -> dict[str, Any]:
             conn.commit()
             total += len(batch)
             elapsed = max(time.perf_counter() - start, 1e-9)
-            print(f"Upserted {total:,}/{len(concepts):,} concepts ({total / elapsed:.1f}/s)", flush=True)
+            print(
+                f"Upserted {total:,}/{len(concepts):,} concepts ({total / elapsed:.1f}/s)",
+                flush=True,
+            )
 
     elapsed = time.perf_counter() - start
     print(f"Done in {elapsed:.1f}s")

@@ -56,8 +56,10 @@ def build_search_text(*values: Any) -> str:
         if isinstance(value, str):
             candidates = [value]
         elif isinstance(value, dict):
-            candidates = [str(item) for item in value.values() if item not in (None, "")]
-        elif isinstance(value, (list, tuple, set)):
+            candidates = [
+                str(item) for item in value.values() if item not in (None, "")
+            ]
+        elif isinstance(value, list | tuple | set):
             candidates = [str(item) for item in value if item not in (None, "")]
         else:
             candidates = [str(value)]
@@ -77,7 +79,7 @@ def stable_code_concept_id(terminology_key: str, code: str) -> int:
     normalized_code = str(code).strip()
     if not normalized_code:
         raise ValueError("code is required")
-    digest = hashlib.sha256(f"{normalized_key}:{normalized_code}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{normalized_key}:{normalized_code}".encode()).hexdigest()
     return int(digest[:15], 16)
 
 

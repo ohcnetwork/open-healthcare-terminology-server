@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 
 class EmbeddingProvider(ABC):
@@ -36,7 +37,7 @@ class EmbeddingProvider(ABC):
         model: str,
         dimensions: int | None = None,
         options: dict[str, Any] | None = None,
-    ) -> "EmbeddingProvider":
+    ) -> EmbeddingProvider:
         return cls(model=model, dimensions=dimensions, **(options or {}))
 
     @abstractmethod

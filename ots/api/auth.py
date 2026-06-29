@@ -28,11 +28,13 @@ class ApiKeyMiddleware:
         api_key = headers.get(api_key_header)
         authorization = headers.get("authorization", "")
         bearer_key = authorization.removeprefix("Bearer ").strip()
-        if api_key == expected_api_key or bearer_key == expected_api_key:
+        if expected_api_key in (api_key, bearer_key):
             await self.app(scope, receive, send)
             return
         response = JSONResponse(
-            {"error": f"Missing or invalid API key. Send it in the {api_key_header!r} header."},
+            {
+                "error": f"Missing or invalid API key. Send it in the {api_key_header!r} header."
+            },
             status_code=401,
         )
         await response(scope, receive, send)

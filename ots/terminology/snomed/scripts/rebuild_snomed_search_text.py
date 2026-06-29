@@ -6,8 +6,9 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -15,9 +16,8 @@ from psycopg import sql
 
 from ots import config
 from ots.db.terminology_postgres import (
-    DEFAULT_DATABASE_URL,
-    connect_db,
     concept_table_name,
+    connect_db,
 )
 from ots.terminology.snomed.model import TERMINOLOGY
 from ots.terminology.snomed.scripts.load_snomed_postgres import (
@@ -48,7 +48,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def batched(items: Iterable[dict[str, Any]], batch_size: int) -> Iterable[list[dict[str, Any]]]:
+def batched(
+    items: Iterable[dict[str, Any]], batch_size: int
+) -> Iterable[list[dict[str, Any]]]:
     batch: list[dict[str, Any]] = []
     for item in items:
         batch.append(item)
@@ -60,7 +62,11 @@ def batched(items: Iterable[dict[str, Any]], batch_size: int) -> Iterable[list[d
 
 
 def row_to_search_text(row: dict[str, Any], parent_terms: dict[int, str]) -> str:
-    parent_texts = [parent_terms[parent_id] for parent_id in row["parent_ids"] if parent_id in parent_terms]
+    parent_texts = [
+        parent_terms[parent_id]
+        for parent_id in row["parent_ids"]
+        if parent_id in parent_terms
+    ]
     relationship_terms = [
         str(item.get("destinationTerm", ""))
         for item in (row.get("relationships") or [])[:50]
@@ -174,7 +180,10 @@ def main() -> int:
             conn.commit()
             updated += len(batch)
             elapsed = max(time.perf_counter() - start, 1e-9)
-            print(f"Updated {updated:,}/{total:,} rows ({updated / elapsed:.1f}/s)", flush=True)
+            print(
+                f"Updated {updated:,}/{total:,} rows ({updated / elapsed:.1f}/s)",
+                flush=True,
+            )
 
         if args.clear_embeddings:
             model_rows = conn.execute(
@@ -198,7 +207,10 @@ def main() -> int:
                 )
                 deleted += int(cursor.rowcount or 0)
             conn.commit()
-            print(f"Deleted {deleted:,} embedding rows for {terminology_key!r}", flush=True)
+            print(
+                f"Deleted {deleted:,} embedding rows for {terminology_key!r}",
+                flush=True,
+            )
 
     print(f"Done in {time.perf_counter() - start:.1f}s")
     return 0

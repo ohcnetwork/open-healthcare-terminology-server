@@ -20,6 +20,12 @@ fastembed = "*"
 python_version = "3.13"
 
 [dev-packages]
+pre-commit = "*"
+ruff = "*"
+coverage = "*"
 
 [scripts]
 ots = "python -m ots.cli"
+lint = "ruff check ."
+format = "ruff format ."
+format-check = "ruff format --check ."

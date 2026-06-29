@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from psycopg import sql
 
@@ -90,7 +91,9 @@ CONCEPT_UPSERT_SQL = """
 """
 
 
-def batched(values: Iterable[dict[str, Any]], batch_size: int) -> Iterable[list[dict[str, Any]]]:
+def batched(
+    values: Iterable[dict[str, Any]], batch_size: int
+) -> Iterable[list[dict[str, Any]]]:
     batch: list[dict[str, Any]] = []
     for value in values:
         batch.append(value)
@@ -106,6 +109,8 @@ def upsert_documents(conn, *, concept_table: str, rows: list[dict[str, Any]]) ->
         return
     with conn.cursor() as cur:
         cur.executemany(
-            sql.SQL(CONCEPT_UPSERT_SQL).format(concept_table=sql.Identifier(concept_table)),
+            sql.SQL(CONCEPT_UPSERT_SQL).format(
+                concept_table=sql.Identifier(concept_table)
+            ),
             rows,
         )

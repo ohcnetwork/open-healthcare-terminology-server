@@ -8,7 +8,9 @@ from ots.api.routes import routes
 
 
 def create_app() -> Starlette:
-    return Starlette(debug=True, routes=routes, middleware=[Middleware(ApiKeyMiddleware)])
+    return Starlette(
+        debug=True, routes=routes, middleware=[Middleware(ApiKeyMiddleware)]
+    )
 
 
 app = create_app()

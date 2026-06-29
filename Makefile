@@ -8,7 +8,7 @@ CLI ?= python -m ots.cli
 RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 CMD_ARGS = $(if $(ARGS),$(ARGS),$(RUN_ARGS))
 
-.PHONY: help build up down restart logs logs-api logs-worker shell migrate migrate-down db-current worker run dev-up dev-down dev-restart dev-logs dev-logs-api dev-logs-worker dev-shell dev-run
+.PHONY: help build up down restart logs logs-api logs-worker shell migrate migrate-down db-current worker run lint format format-check pre-commit install-pre-commit dev-up dev-down dev-restart dev-logs dev-logs-api dev-logs-worker dev-shell dev-run
 
 help:
 	@printf '%s\n' \
@@ -34,8 +34,15 @@ help:
 		'  make run snomed load-packages      Run OTS CLI command' \
 		'  make run ARGS="snomed load -- --help"' \
 		'' \
+		'Quality:' \
+		'  make lint                          Run Ruff lint checks' \
+		'  make format                        Format Python files with Ruff' \
+		'  make format-check                  Check Ruff formatting' \
+		'  make pre-commit                    Run all pre-commit hooks' \
+		'  make install-pre-commit            Install git pre-commit hook' \
+		'' \
 		'Dev:' \
-		'  make dev-up                        Start stack with source bind mount and API reload' \
+		'  make dev-up                        Start stack with source bind mount' \
 		'  make dev-down                      Stop dev stack' \
 		'  make dev-logs-api                  Follow dev API logs' \
 		'  make dev-run ARGS="common --help"  Run OTS CLI in dev container' \
@@ -81,6 +88,21 @@ worker:
 
 run:
 	$(COMPOSE) run --rm $(SERVICE) $(CLI) $(CMD_ARGS)
+
+lint:
+	pipenv run ruff check .
+
+format:
+	pipenv run ruff format .
+
+format-check:
+	pipenv run ruff format --check .
+
+pre-commit:
+	pipenv run pre-commit run --all-files
+
+install-pre-commit:
+	pipenv run pre-commit install
 
 dev-up:
 	$(DEV_COMPOSE) up -d --build

@@ -1,0 +1,164 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "open-terminology-server"
+version = "0.1.0"
+description = "A small, read-heavy terminology server for imported and custom healthcare terminologies."
+authors = [
+    {name = "Open Healthcare Network", email = "info@ohc.network"},
+]
+license = {text = "MIT"}
+keywords = ["terminology", "healthcare", "snomed", "loinc", "icd", "fhir"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
+requires-python = "==3.13.*"
+
+[project.urls]
+Homepage = "https://github.com/ohcnetwork/open_terminology_server"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["ots*"]
+
+[tool.coverage.run]
+branch = true
+source = ["ots"]
+parallel = true
+concurrency = ["multiprocessing"]
+omit = ["*/tests/**", "*/migrations/**", "alembic/versions/**"]
+
+[tool.coverage.report]
+exclude_also = [
+  "def __repr__",
+  "if self.debug:",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+ignore_errors = true
+omit = ["*/tests/**", "*/migrations*/**", "alembic/versions/**"]
+
+[tool.ruff]
+target-version = "py313"
+extend-exclude = [
+  "data",
+  "site",
+  "htmlcov",
+  "alembic/versions",
+]
+include = ["*.py", "pyproject.toml"]
+
+[tool.ruff.lint]
+# https://docs.astral.sh/ruff/rules/
+select = [
+  "F",  # pyflakes
+  "E",  # pycodestyle errors
+  "W",  # pycodestyle warnings
+  "I",  # isort
+  "N",  # pep8-naming
+  "UP", # pyupgrade
+  # "ANN", # flake8-annotations
+  "S",   # flake8-bandit
+  "FBT", # flake8-boolean-trap
+  "B",   # flake8-bugbear
+  "A",   # flake8-builtins
+  "COM", # flake8-commas
+  "C4",  # flake8-comprehensions
+  "DTZ", # flake8-datetimez
+  "T10", # flake8-debugger
+  "DJ",  # flake8-django
+  "EM",  # flake8-errmsg
+  "ISC", # flake8-import-conventions
+  "ICN", # flake8-import-order
+  "LOG", # flake8-logging
+  "G",   # flake8-logging-format
+  "INP", # flake8-no-pep420
+  "PIE", # flake8-pie
+  "T20", # flake8-print
+  "Q",   # flake8-quotes
+  "RSE", # flake8-raise
+  "RET", # flake8-return
+  "SLF", # flake8-self
+  "SIM", # flake8-simplify
+  "TID", # flake8-tidy-imports
+  "INT", # flake8-gettext
+  # "ARG",  # flake8-unused-arguments
+  "PTH", # flake8-use-pathlib
+  # "TD",   # flake8-todo
+  "ERA",  # eradicate
+  "PL",   # pylint
+  "FURB", # refurb
+  "RUF",  # ruff
+]
+unfixable = [
+  "T20", # don't remove print statements
+]
+ignore = [
+  "E203",    # whitespace-before-punctuation
+  "E501",    # line-too-long
+  "FBT002",  # boolean-default-value-positional-argument
+  "SIM105",  # suppressible-exception
+  "PLR0913", # too-many-arguments
+  "PLW1641", # object does not have __hash__ method
+  "DJ001",   # django-nullable-model-string-field
+  "ISC001",  # conflicts with format
+  "COM812",  # conflicts with format
+  "RUF012",  # Too hard
+  "FBT001",  # why not!
+  "S106",
+  "S105",
+  "EM101",   # Why not!
+  "EM102",   # Keep concise dynamic exception messages.
+  "ERA001",  # Lots of commented out code until the big merge!
+  "PLC0415", # TODO: ignore specific warning for top level imports and remove the catchall
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["E402", "F401"]
+"**/tests/**" = ["DTZ001"]
+"ots/terminology/*/scripts/*.py" = ["T20"]
+"ots/terminology/*/model.py" = ["N815"]
+"ots/cli/common/*.py" = ["T20"]
+"ots/api/openapi.py" = ["FBT003"]
+"ots/api/views/concepts.py" = ["PLR0911"]
+"ots/api/views/fhir.py" = ["PLR0912"]
+"ots/api/views/search.py" = ["PLR0911"]
+"ots/api/views/system.py" = ["PLR0911"]
+"ots/config.py" = ["PLW0603"]
+"ots/db/session.py" = ["PLW0603", "S101"]
+"ots/db/terminology_postgres.py" = ["PLR0911", "PLR0912", "PLR0915", "PLR2004", "PLW0603", "S324", "S608"]
+"ots/cli/common/dump_database.py" = ["PLR2004", "S603"]
+"ots/cli/common/load_database_dump.py" = ["S603"]
+"ots/cli/common/ensure_lexical_indexes.py" = ["S608"]
+"ots/cli/common/update_concept_embeddings.py" = ["PLR0912", "PLR0915", "PLR2004"]
+"ots/embedding_providers/utils.py" = ["PLR2004"]
+"ots/terminology/icd/scripts/download_releases.py" = ["S310"]
+"ots/terminology/icd/scripts/load_icd10cm_postgres.py" = ["PLR2004"]
+"ots/terminology/loinc/scripts/load_loinc_postgres.py" = ["PLR0911", "PLR0912", "PLR2004"]
+"ots/terminology/snomed/scripts/load_snomed_postgres.py" = ["PLR0911", "PLR0915"]
+"alembic/**/*.py" = ["INP001"]
+"app.py" = ["INP001"]
+
+[tool.ruff.lint.flake8-builtins]
+builtins-ignorelist = ["id", "list", "filter"]
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+
+[tool.ruff.lint.flake8-unused-arguments]
+ignore-variadic-names = true
+
+[tool.ruff.format]
+line-ending = "lf"
+quote-style = "double"

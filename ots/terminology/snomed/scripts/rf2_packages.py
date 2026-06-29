@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import re
 import zipfile
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -164,7 +165,9 @@ def extract_zip_safely(zip_path: Path, target: Path) -> None:
         for member in archive.infolist():
             destination = (target / member.filename).resolve()
             if not destination.is_relative_to(target_root):
-                raise ValueError(f"Refusing to extract unsafe zip member: {member.filename}")
+                raise ValueError(
+                    f"Refusing to extract unsafe zip member: {member.filename}"
+                )
         archive.extractall(target)
 
 

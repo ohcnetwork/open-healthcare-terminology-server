@@ -57,7 +57,9 @@ def get_embedding_provider(provider: str | None = None) -> type[EmbeddingProvide
     provider_class = REGISTERED_EMBEDDING_PROVIDERS.get(provider_key)
     if provider_class is None:
         supported = ", ".join(supported_providers())
-        raise ValueError(f"Unsupported embedding provider: {provider_key}. Supported: {supported}")
+        raise ValueError(
+            f"Unsupported embedding provider: {provider_key}. Supported: {supported}"
+        )
     return provider_class
 
 
@@ -82,7 +84,9 @@ def normalize_provider_options(
     provider_key = normalize_provider_key(provider)
     provider_class = get_embedding_provider(provider_key)
     aliases = PROVIDER_OPTION_ALIASES.get(provider_key, {})
-    options: dict[str, Any] = provider_class.default_options() if include_defaults else {}
+    options: dict[str, Any] = (
+        provider_class.default_options() if include_defaults else {}
+    )
     for key, value in dict(provider_options or {}).items():
         normalized_key = aliases.get(key, key)
         options[normalized_key] = value
@@ -102,7 +106,9 @@ def create_embedder(
     **legacy_options: Any,
 ) -> EmbeddingProvider:
     provider_class = get_embedding_provider(provider)
-    options = normalize_provider_options(provider, legacy_options, include_defaults=True)
+    options = normalize_provider_options(
+        provider, legacy_options, include_defaults=True
+    )
     options.update(normalize_provider_options(provider, provider_options))
     return provider_class.from_options(
         model=model,
@@ -113,7 +119,11 @@ def create_embedder(
 
 def _hashable_option_value(value: Any) -> Any:
     if isinstance(value, Mapping):
-        return tuple(sorted((str(key), _hashable_option_value(item)) for key, item in value.items()))
+        return tuple(
+            sorted(
+                (str(key), _hashable_option_value(item)) for key, item in value.items()
+            )
+        )
     if isinstance(value, list | tuple | set):
         return tuple(_hashable_option_value(item) for item in value)
     return value
@@ -123,14 +133,19 @@ def provider_options_cache_key(
     provider: str,
     provider_options: Mapping[str, Any] | None = None,
 ) -> tuple[tuple[str, Any], ...]:
-    options = normalize_provider_options(provider, provider_options, include_defaults=True)
+    options = normalize_provider_options(
+        provider, provider_options, include_defaults=True
+    )
     cache_items: list[tuple[str, Any]] = []
     for key, value in sorted(options.items()):
-        if any(secret in key.lower() for secret in ("key", "token", "secret", "password")):
-            value = (
+        cache_value = value
+        if any(
+            secret in key.lower() for secret in ("key", "token", "secret", "password")
+        ):
+            cache_value = (
                 hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
                 if value
                 else None
             )
-        cache_items.append((key, _hashable_option_value(value)))
+        cache_items.append((key, _hashable_option_value(cache_value)))
     return tuple(cache_items)

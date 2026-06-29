@@ -6,12 +6,12 @@ from typing import Any
 from celery import states
 
 from ots import config
+from ots.cli.common.update_concept_embeddings import run_embedding_update
 from ots.embedding_providers import (
     default_dimensions,
     default_provider_model,
 )
 from ots.worker import celery_app
-from ots.cli.common.update_concept_embeddings import run_embedding_update
 
 
 def _clean_int(value: Any) -> int | None:
@@ -55,7 +55,9 @@ def _embedding_provider_options(payload: dict[str, Any]) -> dict[str, Any]:
         "fastembedThreads": payload.get("fastembedThreads"),
         "fastembedProviders": payload.get("fastembedProviders"),
     }
-    provider_options = payload.get("providerOptions") or payload.get("provider_options") or {}
+    provider_options = (
+        payload.get("providerOptions") or payload.get("provider_options") or {}
+    )
     if not isinstance(provider_options, dict):
         raise ValueError("providerOptions must be a JSON object")
     merged = {key: value for key, value in legacy_options.items() if value is not None}

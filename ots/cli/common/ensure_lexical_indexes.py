@@ -42,7 +42,7 @@ def concept_tables(conn, *, terminology: str | None, version: str | None) -> lis
         f"""
         SELECT DISTINCT terminology_key, version_key, concept_table
         FROM terminology_version
-        WHERE {' AND '.join(clauses)}
+        WHERE {" AND ".join(clauses)}
         ORDER BY terminology_key, version_key
         """,
         params,
@@ -54,11 +54,15 @@ def index_statements(*, table_name: str, suffix: str, concurrently: bool):
     return [
         (
             f"idx_{suffix}_concept_document_active",
-            sql.SQL("CREATE INDEX {mode}IF NOT EXISTS {index_name} ON {table_name}(active)"),
+            sql.SQL(
+                "CREATE INDEX {mode}IF NOT EXISTS {index_name} ON {table_name}(active)"
+            ),
         ),
         (
             f"idx_{suffix}_concept_document_semantic_tag",
-            sql.SQL("CREATE INDEX {mode}IF NOT EXISTS {index_name} ON {table_name}(semantic_tag)"),
+            sql.SQL(
+                "CREATE INDEX {mode}IF NOT EXISTS {index_name} ON {table_name}(semantic_tag)"
+            ),
         ),
         (
             f"idx_{suffix}_concept_document_search_vector",
@@ -116,7 +120,9 @@ def main() -> int:
             print("No registered concept tables found.")
             return 0
         for row in rows:
-            suffix = db_schema.safe_index_suffix(f"{row['terminology_key']}_{row['version_key']}")
+            suffix = db_schema.safe_index_suffix(
+                f"{row['terminology_key']}_{row['version_key']}"
+            )
             statements, mode = index_statements(
                 table_name=row["concept_table"],
                 suffix=suffix,

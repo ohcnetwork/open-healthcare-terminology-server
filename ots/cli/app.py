@@ -16,4 +16,6 @@ app = typer.Typer(
 app.add_typer(snomed_app, name="snomed", help="SNOMED CT imports and maintenance.")
 app.add_typer(loinc_app, name="loinc", help="LOINC imports and maintenance.")
 app.add_typer(icd_app, name="icd", help="ICD downloads and imports.")
-app.add_typer(common_app, name="common", help="Database, embeddings, and shared maintenance.")
+app.add_typer(
+    common_app, name="common", help="Database, embeddings, and shared maintenance."
+)

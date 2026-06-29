@@ -79,7 +79,9 @@ async def search_get_endpoint(request: Request) -> JSONResponse:
             or request.query_params.get("parentConceptId"),
             field="ancestorConceptId",
         )
-        include_ancestor = parse_bool(request.query_params.get("includeAncestor"), default=True)
+        include_ancestor = parse_bool(
+            request.query_params.get("includeAncestor"), default=True
+        )
         active_only = parse_bool(request.query_params.get("activeOnly"), default=True)
         include_details = parse_include_details(request.query_params, default=False)
         include_query = parse_include_query(request.query_params, default=False)
@@ -97,7 +99,9 @@ async def search_get_endpoint(request: Request) -> JSONResponse:
                 raw_embedding=None,
                 terminology_key=terminology_key,
                 terminology_version=terminology_version,
-                model_key=str(request.query_params.get("modelKey") or embedding_model_key()),
+                model_key=str(
+                    request.query_params.get("modelKey") or embedding_model_key()
+                ),
                 provider_override=request.query_params.get("provider"),
                 provider_model_override=request.query_params.get("model"),
                 dimensions_override=(
@@ -197,9 +201,7 @@ async def search_post_endpoint(request: Request) -> JSONResponse:
                 provider_override=payload.get("provider"),
                 provider_model_override=payload.get("model"),
                 dimensions_override=(
-                    int(payload["dimensions"])
-                    if payload.get("dimensions")
-                    else None
+                    int(payload["dimensions"]) if payload.get("dimensions") else None
                 ),
                 limit=limit,
                 ancestor_concept_id=ancestor_concept_id,
@@ -295,9 +297,7 @@ async def semantic_search_endpoint(request: Request) -> JSONResponse:
             provider_override=payload.get("provider"),
             provider_model_override=payload.get("model"),
             dimensions_override=(
-                int(payload["dimensions"])
-                if payload.get("dimensions")
-                else None
+                int(payload["dimensions"]) if payload.get("dimensions") else None
             ),
             limit=limit,
             ancestor_concept_id=ancestor_concept_id,

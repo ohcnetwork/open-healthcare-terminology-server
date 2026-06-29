@@ -4,17 +4,17 @@ from collections import OrderedDict
 from threading import RLock
 from typing import Any
 
+from ots import config
+from ots.db.terminology_postgres import (
+    get_embedding_model,
+    vector_search_concepts,
+)
 from ots.embedding_providers import (
     create_embedder,
     default_dimensions,
     default_provider_model,
     default_provider_options,
     provider_options_cache_key,
-)
-from ots import config
-from ots.db.terminology_postgres import (
-    get_embedding_model,
-    vector_search_concepts,
 )
 
 _EMBEDDERS: dict[tuple[str, str, int | None, tuple[tuple[str, Any], ...]], object] = {}
@@ -69,9 +69,13 @@ def encode_query_embedding(
     model_key: str,
     dimensions: int,
 ) -> tuple[list[float], bool]:
-    cache_size = 0 if config.DISABLE_QUERY_EMBEDDING_CACHE else max(
-        config.QUERY_EMBEDDING_CACHE_SIZE,
-        0,
+    cache_size = (
+        0
+        if config.DISABLE_QUERY_EMBEDDING_CACHE
+        else max(
+            config.QUERY_EMBEDDING_CACHE_SIZE,
+            0,
+        )
     )
     if cache_size == 0:
         with _QUERY_EMBEDDING_CACHE_LOCK:
@@ -93,7 +97,9 @@ def encode_query_embedding(
 
     if cache_size > 0:
         with _QUERY_EMBEDDING_CACHE_LOCK:
-            _QUERY_EMBEDDING_CACHE[cache_key] = tuple(float(value) for value in embedding)
+            _QUERY_EMBEDDING_CACHE[cache_key] = tuple(
+                float(value) for value in embedding
+            )
             _QUERY_EMBEDDING_CACHE.move_to_end(cache_key)
             while len(_QUERY_EMBEDDING_CACHE) > cache_size:
                 _QUERY_EMBEDDING_CACHE.popitem(last=False)
@@ -128,8 +134,12 @@ def semantic_search_sync(
     )
     if model_config is None:
         raise ValueError(f"Embedding model {model_key!r} has not been populated")
-    provider = str(provider_override or model_config["provider"] or embedding_provider())
-    provider_model = str(provider_model_override or model_config["provider_model"] or embedding_model())
+    provider = str(
+        provider_override or model_config["provider"] or embedding_provider()
+    )
+    provider_model = str(
+        provider_model_override or model_config["provider_model"] or embedding_model()
+    )
     storage_type = str(model_config.get("storage_type") or "vector")
     dimensions = int(
         dimensions_override

@@ -109,11 +109,15 @@ def main() -> int:
             stdout=handle,
             stderr=subprocess.PIPE,
             text=True,
+            check=False,
         )
     if result.returncode != 0:
         if temp_output.exists():
             temp_output.unlink()
-        message = result.stderr.strip() or f"Command failed with exit code {result.returncode}"
+        message = (
+            result.stderr.strip()
+            or f"Command failed with exit code {result.returncode}"
+        )
         raise SystemExit(
             "Database dump failed.\n\n"
             f"{message}\n\n"

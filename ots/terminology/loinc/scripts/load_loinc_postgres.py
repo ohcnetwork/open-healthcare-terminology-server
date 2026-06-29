@@ -10,8 +10,9 @@ import re
 import sys
 import time
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -20,10 +21,8 @@ from psycopg.types.json import Jsonb
 
 from ots import config
 from ots.db.terminology_postgres import (
-    DEFAULT_DATABASE_URL,
-    DEFAULT_EMBEDDING_DIMENSIONS,
-    connect_db,
     concept_table_name,
+    connect_db,
     init_schema,
 )
 from ots.terminology.loinc.model import LoincTerminology
@@ -217,10 +216,18 @@ def parse_args() -> argparse.Namespace:
         help="Postgres URL. OTS_DATABASE_URL is used by the API.",
     )
     parser.add_argument("--version", help="Terminology version key to import")
-    parser.add_argument("--base-version", help="Base/core edition version this edition composes")
-    parser.add_argument("--package-key", help="Release package key registered for this import")
-    parser.add_argument("--package-version", help="Release package version registered for this import")
-    parser.add_argument("--package-type", default="release", help="Release package type")
+    parser.add_argument(
+        "--base-version", help="Base/core edition version this edition composes"
+    )
+    parser.add_argument(
+        "--package-key", help="Release package key registered for this import"
+    )
+    parser.add_argument(
+        "--package-version", help="Release package version registered for this import"
+    )
+    parser.add_argument(
+        "--package-type", default="release", help="Release package type"
+    )
     parser.add_argument(
         "--default-version",
         action="store_true",
@@ -337,19 +344,21 @@ def is_noisy_loinc_search_term(value: str | None) -> bool:
     if re.fullmatch(r"LG\d+-\d", text):
         return True
     compact_tokens = [
-        token.casefold()
-        for token in re.split(r"[^A-Za-z0-9/]+", text)
-        if token
+        token.casefold() for token in re.split(r"[^A-Za-z0-9/]+", text) if token
     ]
-    if len(compact_tokens) <= 4 and any(token in NOISY_LOINC_CODES for token in compact_tokens):
+    if len(compact_tokens) <= 4 and any(
+        token in NOISY_LOINC_CODES for token in compact_tokens
+    ):
         return True
-    if " " not in text and any(char in text for char in ("-", "+", ".")) and len(text) <= 16:
+    if (
+        " " not in text
+        and any(char in text for char in ("-", "+", "."))
+        and len(text) <= 16
+    ):
         return True
     if re.fullmatch(r"[A-Z]{1,5}/[A-Za-z]{1,5}", text) and " " not in text:
         return True
-    if re.fullmatch(r"[A-Z]{2,8}", text) and folded not in {"hba1c"}:
-        return True
-    return False
+    return bool(re.fullmatch(r"[A-Z]{2,8}", text) and folded not in {"hba1c"})
 
 
 def clean_loinc_search_terms(values: Iterable[Any]) -> list[str]:
@@ -392,7 +401,9 @@ def upsert_sql_for_table(table_name: str):
     return sql.SQL(UPSERT_SQL).format(concept_table=sql.Identifier(table_name))
 
 
-def batched(items: Iterable[dict[str, Any]], batch_size: int) -> Iterable[list[dict[str, Any]]]:
+def batched(
+    items: Iterable[dict[str, Any]], batch_size: int
+) -> Iterable[list[dict[str, Any]]]:
     batch: list[dict[str, Any]] = []
     for item in items:
         batch.append(item)
@@ -433,7 +444,9 @@ def load_consumer_names(loinc_dir: Path, codes: set[str]) -> dict[str, list[str]
     return {code: unique_texts(values) for code, values in names.items()}
 
 
-def load_part_links(loinc_dir: Path, codes: set[str]) -> dict[str, list[dict[str, str]]]:
+def load_part_links(
+    loinc_dir: Path, codes: set[str]
+) -> dict[str, list[dict[str, str]]]:
     links: dict[str, list[dict[str, str]]] = defaultdict(list)
     base = loinc_dir / "AccessoryFiles" / "PartFile"
     for filename in ("LoincPartLink_Primary.csv", "LoincPartLink_Supplementary.csv"):
@@ -524,7 +537,9 @@ def load_maps(loinc_dir: Path, codes: set[str]) -> dict[str, list[dict[str, str]
     return maps
 
 
-def load_answer_lists(loinc_dir: Path, codes: set[str]) -> dict[str, list[dict[str, Any]]]:
+def load_answer_lists(
+    loinc_dir: Path, codes: set[str]
+) -> dict[str, list[dict[str, Any]]]:
     base = loinc_dir / "AccessoryFiles" / "AnswerFile"
     answer_rows_by_list: dict[str, list[dict[str, str]]] = defaultdict(list)
     for row in optional_csv(base / "AnswerList.csv"):
@@ -568,7 +583,9 @@ def variant_key_from_path(path: Path) -> str:
     return path.stem
 
 
-def load_linguistic_variants(loinc_dir: Path, codes: set[str]) -> dict[str, list[dict[str, str]]]:
+def load_linguistic_variants(
+    loinc_dir: Path, codes: set[str]
+) -> dict[str, list[dict[str, str]]]:
     variants: dict[str, list[dict[str, str]]] = defaultdict(list)
     base = loinc_dir / "AccessoryFiles" / "LinguisticVariants"
     for path in sorted(base.glob("*LinguisticVariant.csv")):
@@ -595,7 +612,9 @@ def load_linguistic_variants(loinc_dir: Path, codes: set[str]) -> dict[str, list
     return variants
 
 
-def compute_ancestors(parents_by_code: dict[str, list[str]], codes: set[str]) -> dict[str, list[str]]:
+def compute_ancestors(
+    parents_by_code: dict[str, list[str]], codes: set[str]
+) -> dict[str, list[str]]:
     ancestors: dict[str, list[str]] = {}
     visiting: set[str] = set()
 
@@ -958,7 +977,10 @@ def main() -> int:
             conn.commit()
             total += len(batch)
             elapsed = max(time.perf_counter() - start, 1e-9)
-            print(f"Upserted {total:,}/{len(terms):,} terms ({total / elapsed:.1f}/s)", flush=True)
+            print(
+                f"Upserted {total:,}/{len(terms):,} terms ({total / elapsed:.1f}/s)",
+                flush=True,
+            )
 
     print(f"Done in {time.perf_counter() - start:.1f}s")
     return 0
