@@ -10,13 +10,14 @@ For RF2 file details, see [SNOMED RF2 reference](../SNOMED_RF2_REFERENCE.md).
 
 ## Source Data
 
-Use the `Snapshot` folder from the SNOMED CT International RF2 release:
+Use the SNOMED CT International RF2 release zip package:
 
 ```text
-SnomedCT_InternationalRF2_PRODUCTION_20260601T120000Z/Snapshot
+data/raw/snomed/SnomedCT_InternationalRF2_PRODUCTION_20260601T120000Z.zip
 ```
 
-The loader reads:
+The loader can stream RF2 files directly from zip packages without extracting the
+whole archive. It reads:
 
 - concepts
 - descriptions
@@ -31,7 +32,7 @@ Smoke test:
 
 ```bash
 pipenv run python -m ots.cli snomed load \
-  --rf2-dir SnomedCT_InternationalRF2_PRODUCTION_20260601T120000Z/Snapshot \
+  --rf2-dir data/raw/snomed \
   --recreate \
   --limit 1000
 ```
@@ -40,7 +41,7 @@ Full load:
 
 ```bash
 pipenv run python -m ots.cli snomed load \
-  --rf2-dir SnomedCT_InternationalRF2_PRODUCTION_20260601T120000Z/Snapshot \
+  --rf2-dir data/raw/snomed \
   --recreate
 ```
 
@@ -50,8 +51,10 @@ text definitions, and inferred relationships.
 ## Editions And Extensions
 
 Use `ots.cli snomed load-packages` when a queryable edition is made from
-multiple RF2 zip packages, such as SNOMED CT India plus AYUSH, drug, language,
-geography, COVID-19, and reference-set packages.
+multiple RF2 zip packages, such as SNOMED CT International plus India AYUSH,
+drug, language, geography, COVID-19, and reference-set packages. Package
+discovery is recursive under `--source-dir`, so nested zip files such as
+`data/raw/india/*.zip` are included.
 
 Preview the import grouping:
 

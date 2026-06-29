@@ -65,38 +65,52 @@ def package_type(group: str) -> str:
     return "extension"
 
 
+def package_from_path(path: Path) -> SnomedRf2Package:
+    key = package_key_from_name(path.name)
+    release_date = release_date_from_name(path.name)
+    group = package_group(key)
+    return SnomedRf2Package(
+        source_path=path,
+        package_key=key,
+        package_version=release_date or "unknown",
+        package_type=package_type(group),
+        group=group,
+        release_date=release_date,
+        is_archive=path.is_file(),
+        metadata={
+            "label": path.stem,
+            "sourceFile": path.name,
+            "group": group,
+            "releaseDate": release_date,
+            "archive": path.is_file(),
+        },
+    )
+
+
+def is_snomed_rf2_package_path(path: Path) -> bool:
+    name = path.name.casefold()
+    return "snomedct" in name or "rf2" in name
+
+
 def discover_snomed_rf2_packages(source_dir: Path) -> list[SnomedRf2Package]:
-    packages: list[SnomedRf2Package] = []
-    for path in sorted(source_dir.iterdir()):
-        if path.name.startswith("."):
+    packages_by_identity: dict[tuple[str, str], SnomedRf2Package] = {}
+    candidates = [source_dir, *source_dir.rglob("*")] if source_dir.exists() else []
+    for path in sorted(candidates):
+        if any(part.startswith(".") for part in path.parts):
             continue
         if path.is_file() and path.suffix.lower() != ".zip":
             continue
         if path.is_dir() and not has_snapshot_dir(path):
             continue
+        if not is_snomed_rf2_package_path(path):
+            continue
 
-        key = package_key_from_name(path.name)
-        release_date = release_date_from_name(path.name)
-        group = package_group(key)
-        packages.append(
-            SnomedRf2Package(
-                source_path=path,
-                package_key=key,
-                package_version=release_date or "unknown",
-                package_type=package_type(group),
-                group=group,
-                release_date=release_date,
-                is_archive=path.is_file(),
-                metadata={
-                    "label": path.stem,
-                    "sourceFile": path.name,
-                    "group": group,
-                    "releaseDate": release_date,
-                    "archive": path.is_file(),
-                },
-            )
-        )
-    return sorted(packages, key=package_sort_key)
+        package = package_from_path(path)
+        identity = (package.package_key, package.package_version)
+        existing = packages_by_identity.get(identity)
+        if existing is None or (package.is_archive and not existing.is_archive):
+            packages_by_identity[identity] = package
+    return sorted(packages_by_identity.values(), key=package_sort_key)
 
 
 def package_sort_key(package: SnomedRf2Package) -> tuple[int, str, str]:

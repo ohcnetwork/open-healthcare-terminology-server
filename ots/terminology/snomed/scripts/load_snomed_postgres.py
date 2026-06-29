@@ -5,12 +5,16 @@ from __future__ import annotations
 
 import argparse
 import csv
+import fnmatch
+import io
 import json
 import re
 import sys
 import time
+import zipfile
 from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +30,11 @@ from ots.db.terminology_postgres import (
     init_schema,
 )
 from ots.terminology.snomed.model import SnomedTerminology
+from ots.terminology.snomed.scripts.rf2_packages import (
+    discover_snomed_rf2_packages,
+    ensure_extracted_package,
+    package_from_path,
+)
 
 csv.field_size_limit(sys.maxsize)
 sys.setrecursionlimit(20_000)
@@ -66,8 +75,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--rf2-dir",
         type=Path,
-        default=Path("SnomedCT_InternationalRF2_PRODUCTION_20260601T120000Z/Snapshot"),
-        help="RF2 Snapshot directory, or the release root containing Snapshot/",
+        default=Path("data/raw/snomed"),
+        help=(
+            "RF2 zip package, directory containing one RF2 zip package, "
+            "Snapshot directory, or release root containing Snapshot/"
+        ),
+    )
+    parser.add_argument(
+        "--extract-dir",
+        type=Path,
+        default=Path("data/imports/snomed_rf2"),
+        help="Workspace used when --force-extract extracts RF2 zip packages",
+    )
+    parser.add_argument(
+        "--force-extract",
+        action="store_true",
+        help="Extract RF2 zip packages before loading instead of streaming from zip",
     )
     parser.add_argument(
         "--database-url",
@@ -142,38 +165,141 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def normalize_rf2_dir(path: Path) -> Path:
+@dataclass(frozen=True)
+class ZipRf2Member:
+    zip_path: Path
+    member: str
+
+    def __str__(self) -> str:
+        return f"{self.zip_path}!{self.member}"
+
+
+@dataclass(frozen=True)
+class DirectoryRf2Source:
+    snapshot_dir: Path
+
+    @property
+    def label(self) -> str:
+        return str(self.snapshot_dir)
+
+    def files(self, name: str, *, required: bool = True) -> list[Path]:
+        subdir, pattern = FILE_SPECS[name]
+        matches = sorted((self.snapshot_dir / subdir).glob(pattern))
+        if matches:
+            return matches
+        if required:
+            raise FileNotFoundError(
+                f"Could not find {pattern} under {self.snapshot_dir / subdir}"
+            )
+        return []
+
+
+@dataclass(frozen=True)
+class ZipRf2Source:
+    zip_path: Path
+
+    @property
+    def label(self) -> str:
+        return str(self.zip_path)
+
+    def files(self, name: str, *, required: bool = True) -> list[ZipRf2Member]:
+        subdir, pattern = FILE_SPECS[name]
+        member_pattern = f"*/Snapshot/{subdir}/{pattern}"
+        root_member_pattern = f"Snapshot/{subdir}/{pattern}"
+        with zipfile.ZipFile(self.zip_path) as archive:
+            matches = sorted(
+                member
+                for member in archive.namelist()
+                if fnmatch.fnmatch(member, member_pattern)
+                or fnmatch.fnmatch(member, root_member_pattern)
+            )
+        if matches:
+            return [
+                ZipRf2Member(zip_path=self.zip_path, member=member)
+                for member in matches
+            ]
+        if required:
+            raise FileNotFoundError(
+                f"Could not find {pattern} under Snapshot/{subdir} in {self.zip_path}"
+            )
+        return []
+
+
+Rf2File = Path | ZipRf2Member
+Rf2Source = DirectoryRf2Source | ZipRf2Source
+
+
+def open_rf2_source(
+    path: Path,
+    *,
+    extract_dir: Path | None = None,
+    force_extract: bool = False,
+) -> Rf2Source:
+    if path.is_file() and path.suffix.lower() == ".zip":
+        if not force_extract:
+            return ZipRf2Source(path)
+        package = package_from_path(path)
+        root = ensure_extracted_package(
+            package,
+            extract_dir=extract_dir or Path("data/imports/snomed_rf2"),
+            force=force_extract,
+        )
+        return DirectoryRf2Source(root / "Snapshot")
     if (path / "Snapshot").is_dir():
-        return path / "Snapshot"
-    return path
+        return DirectoryRf2Source(path / "Snapshot")
+    if path.is_dir():
+        packages = discover_snomed_rf2_packages(path)
+        if packages:
+            core_packages = [
+                package for package in packages if package.package_type == "release"
+            ]
+            if len(packages) == 1:
+                package = packages[0]
+            elif len(core_packages) == 1:
+                package = core_packages[0]
+            else:
+                raise ValueError(
+                    f"Multiple RF2 packages found under {path}; pass --rf2-dir "
+                    "with the exact package path"
+                )
+            return open_rf2_source(
+                package.source_path,
+                extract_dir=extract_dir,
+                force_extract=force_extract,
+            )
+    return DirectoryRf2Source(path)
 
 
-def rf2_files(rf2_dir: Path, name: str, *, required: bool = True) -> list[Path]:
-    subdir, pattern = FILE_SPECS[name]
-    matches = sorted((rf2_dir / subdir).glob(pattern))
-    if matches:
-        return matches
-    if required:
-        raise FileNotFoundError(f"Could not find {pattern} under {rf2_dir / subdir}")
-    return []
+def rf2_files(source: Rf2Source, name: str, *, required: bool = True) -> list[Rf2File]:
+    return source.files(name, required=required)
 
 
-def rf2_file(rf2_dir: Path, name: str, *, required: bool = True) -> Path | None:
-    matches = rf2_files(rf2_dir, name, required=required)
+def rf2_file(source: Rf2Source, name: str, *, required: bool = True) -> Rf2File | None:
+    matches = rf2_files(source, name, required=required)
     if matches:
         return matches[0]
     return None
 
 
-def iter_rf2(path: Path) -> Iterable[dict[str, str]]:
+def iter_rf2(path: Rf2File) -> Iterable[dict[str, str]]:
+    if isinstance(path, ZipRf2Member):
+        with (
+            zipfile.ZipFile(path.zip_path) as archive,
+            archive.open(path.member) as raw_handle,
+            io.TextIOWrapper(raw_handle, encoding="utf-8", newline="") as handle,
+        ):
+            yield from csv.DictReader(handle, delimiter="\t")
+        return
     with path.open("r", encoding="utf-8", newline="") as handle:
         yield from csv.DictReader(handle, delimiter="\t")
 
 
-def iter_rf2_optional(paths: Path | Iterable[Path] | None) -> Iterable[dict[str, str]]:
+def iter_rf2_optional(
+    paths: Rf2File | Iterable[Rf2File] | None,
+) -> Iterable[dict[str, str]]:
     if paths is None:
         return
-    if isinstance(paths, Path):
+    if isinstance(paths, Path | ZipRf2Member):
         yield from iter_rf2(paths)
         return
     for path in paths:
@@ -236,7 +362,7 @@ def unique_texts(values: Iterable[str], *, limit: int | None = None) -> list[str
 
 
 def load_concepts(
-    path: Path, *, include_inactive: bool, limit: int | None
+    path: Rf2File, *, include_inactive: bool, limit: int | None
 ) -> dict[int, dict[str, Any]]:
     concepts: dict[int, dict[str, Any]] = {}
     for row in iter_rf2(path):
@@ -256,7 +382,7 @@ def load_concepts(
 
 
 def load_descriptions(
-    path: Path,
+    path: Rf2File,
     concepts: dict[int, dict[str, Any]],
 ) -> tuple[dict[int, dict[str, Any]], dict[int, list[dict[str, Any]]]]:
     descriptions_by_id: dict[int, dict[str, Any]] = {}
@@ -285,7 +411,7 @@ def load_descriptions(
 
 
 def apply_language_refset(
-    path: Path, descriptions_by_id: dict[int, dict[str, Any]]
+    path: Rf2File, descriptions_by_id: dict[int, dict[str, Any]]
 ) -> None:
     for row in iter_rf2(path):
         if not is_active(row):
@@ -309,7 +435,7 @@ def apply_language_refset(
 
 
 def load_text_definitions(
-    path: Path | None, concepts: dict[int, dict[str, Any]]
+    path: Rf2File | None, concepts: dict[int, dict[str, Any]]
 ) -> dict[int, list[dict[str, Any]]]:
     definitions: dict[int, list[dict[str, Any]]] = defaultdict(list)
     if path is None:
@@ -336,7 +462,7 @@ def load_text_definitions(
 
 
 def load_relationships(
-    path: Path,
+    path: Rf2File,
     concepts: dict[int, dict[str, Any]],
 ) -> tuple[dict[int, list[int]], dict[int, list[int]], dict[int, list[dict[str, Any]]]]:
     parent_ids: dict[int, list[int]] = defaultdict(list)
@@ -368,7 +494,7 @@ def load_relationships(
 
 
 def load_concrete_values(
-    path: Path | Iterable[Path] | None,
+    path: Rf2File | Iterable[Rf2File] | None,
     concepts: dict[int, dict[str, Any]],
 ) -> dict[int, list[dict[str, Any]]]:
     values: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -392,7 +518,7 @@ def load_concrete_values(
 
 
 def load_simple_maps(
-    path: Path | Iterable[Path] | None,
+    path: Rf2File | Iterable[Rf2File] | None,
     concepts: dict[int, dict[str, Any]],
 ) -> dict[int, list[dict[str, Any]]]:
     maps: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -413,7 +539,7 @@ def load_simple_maps(
 
 
 def load_extended_maps(
-    path: Path | Iterable[Path] | None,
+    path: Rf2File | Iterable[Rf2File] | None,
     concepts: dict[int, dict[str, Any]],
 ) -> dict[int, list[dict[str, Any]]]:
     maps: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -440,7 +566,7 @@ def load_extended_maps(
 
 
 def load_simple_refsets(
-    path: Path | Iterable[Path] | None,
+    path: Rf2File | Iterable[Rf2File] | None,
     concepts: dict[int, dict[str, Any]],
 ) -> dict[int, list[int]]:
     refsets: dict[int, list[int]] = defaultdict(list)
@@ -452,7 +578,7 @@ def load_simple_refsets(
 
 
 def load_attribute_values(
-    path: Path | Iterable[Path] | None,
+    path: Rf2File | Iterable[Rf2File] | None,
     concepts: dict[int, dict[str, Any]],
 ) -> dict[int, list[dict[str, Any]]]:
     attributes: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -473,7 +599,7 @@ def load_attribute_values(
 
 
 def load_associations(
-    path: Path | Iterable[Path] | None,
+    path: Rf2File | Iterable[Rf2File] | None,
     concepts: dict[int, dict[str, Any]],
 ) -> dict[int, list[dict[str, Any]]]:
     associations: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -873,12 +999,16 @@ def parse_package_metadata(value: str | None) -> dict[str, Any]:
 
 def load_snomed_rf2_package(args: argparse.Namespace) -> dict[str, Any]:
     start = time.perf_counter()
-    rf2_dir = normalize_rf2_dir(args.rf2_dir)
+    rf2_source = open_rf2_source(
+        args.rf2_dir,
+        extract_dir=getattr(args, "extract_dir", None),
+        force_extract=bool(getattr(args, "force_extract", False)),
+    )
 
-    print(f"RF2 snapshot: {rf2_dir}", flush=True)
+    print(f"RF2 source: {rf2_source.label}", flush=True)
     print("Loading concepts", flush=True)
     concepts = load_concepts(
-        rf2_file(rf2_dir, "concept"),
+        rf2_file(rf2_source, "concept"),
         include_inactive=args.include_inactive,
         limit=args.limit,
     )
@@ -886,23 +1016,23 @@ def load_snomed_rf2_package(args: argparse.Namespace) -> dict[str, Any]:
 
     print("Loading descriptions", flush=True)
     descriptions_by_id, descriptions_by_concept = load_descriptions(
-        rf2_file(rf2_dir, "description"),
+        rf2_file(rf2_source, "description"),
         concepts,
     )
     print(f"Descriptions: {len(descriptions_by_id):,}", flush=True)
 
     print("Applying language refset", flush=True)
-    apply_language_refset(rf2_file(rf2_dir, "language_refset"), descriptions_by_id)
+    apply_language_refset(rf2_file(rf2_source, "language_refset"), descriptions_by_id)
 
     print("Loading text definitions", flush=True)
     text_definitions = load_text_definitions(
-        rf2_file(rf2_dir, "text_definition", required=False),
+        rf2_file(rf2_source, "text_definition", required=False),
         concepts,
     )
 
     print("Loading relationships", flush=True)
     parent_ids, child_ids, relationships = load_relationships(
-        rf2_file(rf2_dir, "relationship"),
+        rf2_file(rf2_source, "relationship"),
         concepts,
     )
 
@@ -916,23 +1046,23 @@ def load_snomed_rf2_package(args: argparse.Namespace) -> dict[str, Any]:
     else:
         print("Loading optional RF2 payloads", flush=True)
         concrete_values = load_concrete_values(
-            rf2_files(rf2_dir, "relationship_concrete_value", required=False),
+            rf2_files(rf2_source, "relationship_concrete_value", required=False),
             concepts,
         )
         simple_maps = load_simple_maps(
-            rf2_files(rf2_dir, "simple_map", required=False), concepts
+            rf2_files(rf2_source, "simple_map", required=False), concepts
         )
         extended_maps = load_extended_maps(
-            rf2_files(rf2_dir, "extended_map", required=False), concepts
+            rf2_files(rf2_source, "extended_map", required=False), concepts
         )
         simple_refsets = load_simple_refsets(
-            rf2_files(rf2_dir, "simple_refset", required=False), concepts
+            rf2_files(rf2_source, "simple_refset", required=False), concepts
         )
         attributes = load_attribute_values(
-            rf2_files(rf2_dir, "attribute_value", required=False), concepts
+            rf2_files(rf2_source, "attribute_value", required=False), concepts
         )
         associations = load_associations(
-            rf2_files(rf2_dir, "association", required=False), concepts
+            rf2_files(rf2_source, "association", required=False), concepts
         )
 
     print("Precomputing ancestor arrays", flush=True)
@@ -942,6 +1072,19 @@ def load_snomed_rf2_package(args: argparse.Namespace) -> dict[str, Any]:
     config.set_database_url(args.database_url)
     terminology_key = TERMINOLOGY.key
     concept_table = concept_table_name(terminology_key, args.version)
+    source_package_path = (
+        rf2_source.zip_path
+        if isinstance(rf2_source, ZipRf2Source)
+        else args.rf2_dir
+        if args.rf2_dir.is_file() and args.rf2_dir.suffix.lower() == ".zip"
+        else None
+    )
+    source_package = (
+        package_from_path(source_package_path) if source_package_path else None
+    )
+    package_metadata = parse_package_metadata(args.package_metadata_json)
+    if source_package is not None:
+        package_metadata = {**source_package.metadata, **package_metadata}
     with connect_db() as conn:
         if args.recreate:
             print(f"Dropping existing {concept_table}", flush=True)
@@ -959,12 +1102,19 @@ def load_snomed_rf2_package(args: argparse.Namespace) -> dict[str, Any]:
             set_default_version=args.default_version,
             edition_type=args.edition_type,
             base_version_key=args.base_version,
-            package_key=args.package_key,
-            package_version=args.package_version,
-            package_type=args.package_type,
+            package_key=args.package_key
+            or (source_package.package_key if source_package else None),
+            package_version=args.package_version
+            or (source_package.package_version if source_package else None),
+            package_type=(
+                args.package_type
+                if args.package_type != "release" or source_package is None
+                else source_package.package_type
+            ),
             package_role=args.package_role,
-            package_source_uri=args.package_source_uri,
-            package_metadata=parse_package_metadata(args.package_metadata_json),
+            package_source_uri=args.package_source_uri
+            or (source_package.source_uri if source_package else None),
+            package_metadata=package_metadata,
         )
         upsert_sql = upsert_sql_for_table(concept_table)
 
@@ -998,7 +1148,7 @@ def load_snomed_rf2_package(args: argparse.Namespace) -> dict[str, Any]:
     elapsed = time.perf_counter() - start
     print(f"Done in {elapsed:.1f}s")
     return {
-        "rf2_dir": str(rf2_dir),
+        "rf2_source": rf2_source.label,
         "concept_table": concept_table,
         "concepts": len(concepts),
         "upserted": total,

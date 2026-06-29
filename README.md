@@ -288,7 +288,7 @@ Import a manually named version and make it the default:
 
 ```bash
 pipenv run python -m ots.cli snomed load \
-  --rf2-dir data/raw/snomed/Snapshot \
+  --rf2-dir data/raw/snomed \
   --version 20260601 \
   --package-key snomed-international \
   --package-version 20260601 \
@@ -306,8 +306,10 @@ pipenv run python -m ots.cli loinc load \
   --package-version 2.82
 ```
 
-For SNOMED editions composed from multiple RF2 packages, first preview the
-package grouping and then load the zips into a single edition:
+For SNOMED editions composed from multiple RF2 packages, keep the International
+RF2 package and extension packages as zip files under `data/raw`. Package
+discovery is recursive, so `data/raw/india/*.zip` is included automatically.
+First preview the package grouping and then load the zips into a single edition:
 
 ```bash
 pipenv run python -m ots.cli snomed load-packages \
