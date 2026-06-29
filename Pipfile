@@ -1,0 +1,25 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+starlette = "==1.3.1"
+uvicorn = "0.49.0"
+pydantic = "2.13.4"
+psycopg = {extras = ["binary"], version = "*"}
+sqlalchemy = "2.*"
+alembic = "*"
+ollama = "*"
+openai = "*"
+celery = {extras = ["sqlalchemy"], version = "*"}
+typer = "*"
+fastembed = "*"
+
+[requires]
+python_version = "3.13"
+
+[dev-packages]
+
+[scripts]
+ots = "python -m ots.cli"

@@ -1,0 +1,81 @@
+x-ots-env: &ots-env
+  OTS_DATABASE_URL: ${OTS_DATABASE_URL:-postgresql://${POSTGRES_USER:-ots}:${POSTGRES_PASSWORD:-ots}@postgres:5432/${POSTGRES_DB:-ots}}
+  OTS_SQLALCHEMY_DATABASE_URL: ${OTS_SQLALCHEMY_DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-ots}:${POSTGRES_PASSWORD:-ots}@postgres:5432/${POSTGRES_DB:-ots}}
+  OTS_API_KEY: ${OTS_API_KEY:-open-terminology-server-dev-key}
+  OTS_API_KEY_HEADER: ${OTS_API_KEY_HEADER:-x-api-key}
+  OTS_PUBLIC_PATHS: ${OTS_PUBLIC_PATHS:-/docs,/openapi.json,/favicon.ico}
+  OTS_CELERY_BROKER_URL: ${OTS_CELERY_BROKER_URL:-sqla+postgresql+psycopg://${POSTGRES_USER:-ots}:${POSTGRES_PASSWORD:-ots}@postgres:5432/${POSTGRES_DB:-ots}}
+  OTS_CELERY_RESULT_BACKEND: ${OTS_CELERY_RESULT_BACKEND:-db+postgresql+psycopg://${POSTGRES_USER:-ots}:${POSTGRES_PASSWORD:-ots}@postgres:5432/${POSTGRES_DB:-ots}}
+  OTS_CELERY_TASK_ALWAYS_EAGER: ${OTS_CELERY_TASK_ALWAYS_EAGER:-false}
+  OTS_OLLAMA_HOST: ${OTS_OLLAMA_HOST:-http://host.docker.internal:11434}
+  OTS_FASTEMBED_CACHE_DIR: ${OTS_FASTEMBED_CACHE_DIR:-/app/data/models/fastembed}
+  OTS_FASTEMBED_THREADS: ${OTS_FASTEMBED_THREADS:-}
+  OTS_FASTEMBED_PROVIDERS: ${OTS_FASTEMBED_PROVIDERS:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OTS_EMBEDDING_PROVIDER: ${OTS_EMBEDDING_PROVIDER:-ollama}
+  OTS_EMBEDDING_MODEL: ${OTS_EMBEDDING_MODEL:-}
+  OTS_EMBEDDING_MODEL_KEY: ${OTS_EMBEDDING_MODEL_KEY:-}
+  OTS_EMBEDDING_DIMENSIONS: ${OTS_EMBEDDING_DIMENSIONS:-}
+  OTS_EMBEDDING_PARALLEL_REQUESTS: ${OTS_EMBEDDING_PARALLEL_REQUESTS:-1}
+  OTS_QUERY_EMBEDDING_CACHE_SIZE: ${OTS_QUERY_EMBEDDING_CACHE_SIZE:-1024}
+  OTS_DISABLE_QUERY_EMBEDDING_CACHE: ${OTS_DISABLE_QUERY_EMBEDDING_CACHE:-true}
+
+services:
+  api:
+    build:
+      context: .
+    image: open-terminology-server:local
+    container_name: ots-api
+    environment:
+      <<: *ots-env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m uvicorn app:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import os, urllib.request; req=urllib.request.Request('http://127.0.0.1:8000/health', headers={'x-api-key': os.environ.get('OTS_API_KEY', '')}); urllib.request.urlopen(req, timeout=5).read()\"",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  worker:
+    build:
+      context: .
+    image: open-terminology-server:local
+    container_name: ots-worker
+    environment:
+      <<: *ots-env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: celery -A ots.worker.celery_app worker --loglevel=${OTS_CELERY_LOGLEVEL:-info} --pool=threads --concurrency=${OTS_CELERY_CONCURRENCY:-1}
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ots-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ots}
+      POSTGRES_USER: ${POSTGRES_USER:-ots}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ots}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ots-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ots -d ots"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  ots-postgres-data:
