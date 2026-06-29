@@ -18,9 +18,18 @@ The API supports:
 - optional ancestor and semantic-tag filters
 - terminology versions, with one default version per terminology
 
+## Third-Party Terminology Notice
+
+SNOMED CT, LOINC, ICD-10-CM, and ICD-11 MMS are third-party terminology
+systems. Their names, trademarks, code systems, and release data belong to
+their respective owners. Open Terminology Server is independent and is not
+endorsed by SNOMED International, Regenstrief Institute, the LOINC Committee,
+WHO, CMS, NCHS, or related publishers. See [NOTICE.md](NOTICE.md).
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Third-party notices](NOTICE.md)
 - [SNOMED CT](docs/terminologies/SNOMED.md)
 - [LOINC](docs/terminologies/LOINC.md)
 - [ICD-10-CM](docs/terminologies/ICD10CM.md)

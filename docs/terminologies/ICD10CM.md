@@ -3,6 +3,10 @@
 ICD-10-CM is loaded from the CMS code descriptions tabular order ZIP into
 `icd10cm_concept_document`.
 
+ICD is a third-party terminology family published by WHO. ICD-10-CM source
+data is distributed by United States government publishers. This project is not
+endorsed by WHO, CMS, or NCHS. See [notices](../../NOTICE.md).
+
 The loader stores the displayed dotted code, the raw CMS code, billable status,
 short title, long title, and hierarchy inferred from code prefixes.
 

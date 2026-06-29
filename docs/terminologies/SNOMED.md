@@ -3,6 +3,9 @@
 SNOMED CT is loaded from RF2 Snapshot files into `snomed_concept_document`.
 The loader is optimized for read-heavy search and lookup, not authoring.
 
+SNOMED and SNOMED CT are third-party registered trademarks. This project is not
+endorsed by SNOMED International. See [notices](../../NOTICE.md).
+
 For RF2 file details, see [SNOMED RF2 reference](../SNOMED_RF2_REFERENCE.md).
 
 ## Source Data

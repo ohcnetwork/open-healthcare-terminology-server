@@ -3,6 +3,9 @@
 ICD-11 MMS is loaded from the WHO simple tabulation ZIP into
 `icd11_concept_document`.
 
+ICD is a third-party terminology family published by WHO. This project is not
+endorsed by WHO. See [notices](../../NOTICE.md).
+
 The loader stores categories, blocks, chapters, titles, coding notes, browser
 links, class kind, primary tabulation status, and hierarchy from the tabulation
 parent URI.

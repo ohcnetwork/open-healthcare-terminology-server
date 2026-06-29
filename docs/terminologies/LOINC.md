@@ -4,6 +4,9 @@ LOINC is loaded from release CSV files into `loinc_concept_document`. The
 original LOINC code is preserved in `payload.code`, exposed as `code` and
 `display_code` in API responses, and indexed for lookup.
 
+LOINC is a third-party registered trademark. This project is not endorsed by
+Regenstrief Institute or the LOINC Committee. See [notices](../../NOTICE.md).
+
 LOINC codes such as `4548-4` also have numeric internal `concept_id` values for
 Postgres primary keys, hierarchy arrays, and embedding tables. Do not display
 the internal `concept_id` as the LOINC code; use `code` or `display_code`.
